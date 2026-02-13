@@ -1,4 +1,4 @@
-weather_year_1941_336H:
+weather_year_1941_336H:     # CAPACITY EXPANSION AND DISPATCH
   snapshots:
     start: "1941-07-01 00:00"
     end: "1942-06-30 23:00"

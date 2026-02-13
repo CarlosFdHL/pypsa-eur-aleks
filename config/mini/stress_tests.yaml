@@ -1,4 +1,4 @@
-weather_year_1965_336H:
+weather_year_1965_336H:       # DISPATCH ONLY
   snapshots:
     start: "1965-07-01 00:00"
     end: "1966-06-30 23:00"

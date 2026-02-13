@@ -833,20 +833,47 @@ def update_config_from_wildcards(config, w, inplace=True):
     if not inplace:
         return config
 
+# CARLOS CHANGE ------------------------------------------------------------------------------
+# def get_checksum_from_zenodo(file_url):
+#     parts = file_url.split("/")
+#     record_id = parts[parts.index("records") + 1]
+#     filename = parts[-1]
 
-def get_checksum_from_zenodo(file_url):
-    parts = file_url.split("/")
-    record_id = parts[parts.index("records") + 1]
+#     response = requests.get(f"https://zenodo.org/api/records/{record_id}", timeout=30)
+#     response.raise_for_status()
+#     data = response.json()
+
+#     for file in data["files"]:
+#         if file["key"] == filename:
+#             return file["checksum"]
+#     return None
+from urllib.parse import urlparse
+def get_checksum_from_zenodo(file_url: str):
+    # Normalize and parse path
+    path = urlparse(file_url).path  # e.g. "/records/14144752/files/buses.csv"
+    parts = [p for p in path.split("/") if p]
+
+    # Accept both /records/<id>/... and /record/<id>/...
+    if "records" in parts:
+        record_id = parts[parts.index("records") + 1]
+    elif "record" in parts:
+        record_id = parts[parts.index("record") + 1]
+    else:
+        # Unknown URL shape -> can't infer record id
+        return None
+
     filename = parts[-1]
 
     response = requests.get(f"https://zenodo.org/api/records/{record_id}", timeout=30)
     response.raise_for_status()
     data = response.json()
 
-    for file in data["files"]:
-        if file["key"] == filename:
-            return file["checksum"]
+    for f in data.get("files", []):
+        if f.get("key") == filename:
+            return f.get("checksum")
     return None
+
+# CARLOS CHANGE ------------------------------------------------------------------------------
 
 
 def validate_checksum(file_path, zenodo_url=None, checksum=None):
