@@ -40,6 +40,12 @@ if __name__ == "__main__":
     # population is given in dimensions of 1e3=k
     nuts3 = gpd.read_file(snakemake.input.nuts3_shapes).set_index("index")
 
+    # CARLOS CHANGE ----------------------------------------------------------------------------------------------
+    nuts3 = nuts3.reset_index(drop=True)
+    grid_cells = grid_cells.reset_index(drop=True)  # if it is GeoSeries/GeoDataFrame
+
+    # END OF CARLOS CHANGE ---------------------------------------------------------------------------------------
+
     # Indicator matrix NUTS3 -> grid cells
     I = atlite.cutout.compute_indicatormatrix(nuts3.geometry, grid_cells)  # noqa: E741
 

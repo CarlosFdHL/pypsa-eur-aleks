@@ -164,7 +164,7 @@ ch_mapping = {
 
 
 def find_physical_output(df):
-    start = np.where(df.index.str.contains("Physical output", na=""))[0][0]
+    start = np.where(df.index.str.contains("Physical output", na=False))[0][0] # CARLOS CHANGE: na="" for na=False ; PANDAS VERSION PROBLEM
     empty_row = np.where(df.index.isnull())[0]
     end = empty_row[np.argmax(empty_row > start)]
     return slice(start, end)

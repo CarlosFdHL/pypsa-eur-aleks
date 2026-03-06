@@ -55,9 +55,36 @@ def diameter_to_capacity(pipe_diameter_mm):
 
 def load_dataset(fn):
     df = gpd.read_file(fn)
-    param = df.param.apply(json.loads).apply(pd.Series)
+
+    # CARLOS CHANGE DUE TO SOME ERROR. SHOULD BE GENERAL FOR BOTH JSON OR DICT
+    def parse_param(x):
+        if isinstance(x, dict):
+            return x
+        if pd.isna(x):
+            return {}
+        return json.loads(x)
+
+    param = df["param"].apply(parse_param).apply(pd.Series)
+
+    # END OF CARLOS CHANGE
+
     cols = ["diameter_mm", "max_cap_M_m3_per_d"]
-    method = df.method.apply(json.loads).apply(pd.Series)[cols]
+
+    # CARLOS CHANGE
+    # method = df.method.apply(json.loads).apply(pd.Series)[cols]
+    def _ensure_dict(x):
+        if isinstance(x, dict):
+            return x
+        if pd.isna(x):
+            return {}
+        if isinstance(x, (str, bytes, bytearray)):
+            return json.loads(x)
+        raise TypeError(f"Unexpected type in method column: {type(x)}")
+
+    method = df["method"].apply(_ensure_dict).apply(pd.Series)[cols]
+
+    # END OF CARLOS CHANGE
+    
     method.columns = method.columns + "_method"
     df = pd.concat([df, param, method], axis=1)
     to_drop = ["param", "uncertainty", "method", "tags"]

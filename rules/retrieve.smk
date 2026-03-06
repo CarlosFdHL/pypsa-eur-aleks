@@ -277,9 +277,11 @@ if config["enable"]["retrieve"]:
         resources:
             mem_mb=5000,
         retries: 2
+        params:
+            url="https://zenodo.org/records/13757228/files/shipdensity_global.zip",  # !!!! CARLOS CHANGE: CHECKSUM NEEDS TO RECEIVE THIS URL
         run:
             move(input[0], output[0])
-            validate_checksum(output[0], input[0])
+            validate_checksum(output[0], params.url)
 
 
 if config["enable"]["retrieve"]:
@@ -485,9 +487,19 @@ if config["enable"]["retrieve"]:
     )
 
     # 3-letter month + 4 digit year for current/previous/next month to test
+
+    # CARLOS CHANGE -------------------------------------------------------------------------
+
     current_monthyear = datetime.now().strftime("%b%Y")
     prev_monthyear = (datetime.now() - timedelta(30)).strftime("%b%Y")
     next_monthyear = (datetime.now() + timedelta(30)).strftime("%b%Y")
+
+    #current_monthyear = (datetime.now() - timedelta(120)).strftime("%b%Y")
+    #prev_monthyear = (datetime.now() - timedelta(90)).strftime("%b%Y")
+    #next_monthyear = datetime.now().strftime("%b%Y")
+
+
+    # END OF CARLOS CHANGE ------------------------------------------------------------------
 
     # Test prioritised: current month -> previous -> next
     for bYYYY in [current_monthyear, prev_monthyear, next_monthyear]:
@@ -497,62 +509,82 @@ if config["enable"]["retrieve"]:
             # If None of the three URLs are working
             url = False
 
-    assert (
-        url
-    ), f"No WDPA files found at {url_pattern} for bY='{current_monthyear}, {prev_monthyear}, or {next_monthyear}'"
+    # CARLOS CHANGE ----------------------------------------------------------------------
+    # assert (
+    #     url
+    # ), f"No WDPA files found at {url_pattern} for bY='{current_monthyear}, {prev_monthyear}, or {next_monthyear}'"
+    if Path("data/WDPA.gpkg").exists() and Path("data/WDPA_WDOECM_marine.gpkg").exists():
+    # Local files already present: skip remote availability assertion
+        pass
+    else:
+        assert False, f"No WDPA files found at {url_pattern} for bY='{...}'"
+
+    
+    from pathlib import Path
+
+    HAVE_LOCAL_WDPA = Path("data/WDPA.gpkg").exists()
+    HAVE_LOCAL_WDPA_MARINE = Path("data/WDPA_WDOECM_marine.gpkg").exists()
+    
 
     # Downloading protected area database from WDPA
     # extract the main zip and then merge the contained 3 zipped shapefiles
     # Website: https://www.protectedplanet.net/en/thematic-areas/wdpa
-    rule download_wdpa:
-        input:
-            zip_file=storage(url, keep_local=True),
-        params:
-            zip_file="WDPA_shp.zip",
-            folder_name="WDPA",
-        output:
-            gpkg="data/WDPA.gpkg",
-        run:
-            # Copy file and ensure proper permissions
-            shcopy2(input.zip_file, params.zip_file)
-            output_folder = Path(output.gpkg).parent / params.folder_name
-            unpack_archive(params.zip_file, output_folder)
+    if not HAVE_LOCAL_WDPA:
+        rule download_wdpa:
+            input:
+                zip_file=storage(url, keep_local=True),
+            params:
+                zip_file="WDPA_shp.zip",
+                folder_name="WDPA",
+            output:
+                gpkg="data/WDPA.gpkg",
+            run:
+                shcopy2(input.zip_file, params.zip_file)
+                output_folder = Path(output.gpkg).parent / params.folder_name
+                unpack_archive(params.zip_file, output_folder)
 
-            for i in range(3):
-                # vsizip is special driver for directly working with zipped shapefiles in ogr2ogr
-                layer_path = (
-                    f"/vsizip/{output_folder}/WDPA_{bYYYY}_Public_shp_{i}.zip"
-                )
-                print(f"Adding layer {i+1} of 3 to combined output file.")
-                shell("ogr2ogr -f gpkg -update -append {output.gpkg} {layer_path}")
-            os.remove(params.zip_file)
+                for i in range(3):
+                    layer_path = f"/vsizip/{output_folder}/WDPA_{bYYYY}_Public_shp_{i}.zip"
+                    print(f"Adding layer {i+1} of 3 to combined output file.")
+                    shell(f"ogr2ogr -f gpkg -update -append {output.gpkg} {layer_path}")
 
-    rule download_wdpa_marine:
-        # Downloading Marine protected area database from WDPA
-        # extract the main zip and then merge the contained 3 zipped shapefiles
-        # Website: https://www.protectedplanet.net/en/thematic-areas/marine-protected-areas
-        input:
-            zip_file=storage(
-                f"https://d1gam3xoknrgr2.cloudfront.net/current/WDPA_WDOECM_{bYYYY}_Public_marine_shp.zip",
-                keep_local=True,
-            ),
-        params:
-            zip_file="WDPA_WDOECM_marine.zip",
-            folder_name="WDPA_WDOECM_marine",
-        output:
-            gpkg="data/WDPA_WDOECM_marine.gpkg",
-        run:
-            shcopy2(input.zip_file, params.zip_file)
-            output_folder = Path(output.gpkg).parent / params.folder_name
-            unpack_archive(params.zip_file, output_folder)
+                os.remove(params.zip_file)
+    else:
+        rule download_wdpa:
+            output:
+                gpkg="data/WDPA.gpkg",
+            shell:
+                "true"
 
-            for i in range(3):
-                # vsizip is special driver for directly working with zipped shapefiles in ogr2ogr
-                layer_path = f"/vsizip/{output_folder}/WDPA_WDOECM_{bYYYY}_Public_marine_shp_{i}.zip"
-                print(f"Adding layer {i+1} of 3 to combined output file.")
-                shell("ogr2ogr -f gpkg -update -append {output.gpkg} {layer_path}")
-            os.remove(params.zip_file)
 
+    if not HAVE_LOCAL_WDPA_MARINE:
+        rule download_wdpa_marine:
+            input:
+                zip_file=storage(url_marine, keep_local=True),
+            params:
+                zip_file="WDPA_WDOECM_marine.zip",
+                folder_name="WDPA_WDOECM_marine",
+            output:
+                gpkg="data/WDPA_WDOECM_marine.gpkg",
+            run:
+                shcopy2(input.zip_file, params.zip_file)
+                output_folder = Path(output.gpkg).parent / params.folder_name
+                unpack_archive(params.zip_file, output_folder)
+
+                for i in range(3):
+                    layer_path = f"/vsizip/{output_folder}/WDPA_WDOECM_{bYYYY}_Public_marine_shp_{i}.zip"
+                    print(f"Adding layer {i+1} of 3 to combined output file.")
+                    shell(f"ogr2ogr -f gpkg -update -append {output.gpkg} {layer_path}")
+
+                os.remove(params.zip_file)
+    else:
+        rule download_wdpa_marine:
+            output:
+                gpkg="data/WDPA_WDOECM_marine.gpkg",
+            shell:
+                "true"
+
+    # END CARLOS CHANGE ------------------------------------------------------------------
 
 
 if config["enable"]["retrieve"]:

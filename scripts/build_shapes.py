@@ -617,9 +617,52 @@ if __name__ == "__main__":
     configure_logging(snakemake)
     set_scenario_config(snakemake)
 
+    # CARLOS CHANGE -----------------------------------------------------------------------
+    # # Offshore regions
+    # offshore_shapes = eez(snakemake.input.eez, snakemake.params.countries)
+    # offshore_shapes.reset_index().to_file(snakemake.output.offshore_shapes)
+
+    # # Onshore regions
+    # regions = create_regions(
+    #     snakemake.params.countries,
+    #     snakemake.input.nuts3_2021,
+    #     snakemake.input.ba_adm1,
+    #     snakemake.input.md_adm1,
+    #     snakemake.input.ua_adm1,
+    #     snakemake.input.xk_adm1,
+    #     offshore_shapes,
+    #     snakemake.input.nuts3_gdp,
+    #     snakemake.input.nuts3_pop,
+    #     snakemake.input.bidding_zones,
+    #     snakemake.input.other_gdp,
+    #     snakemake.input.other_pop,
+    # )
+
+    # country_shapes = regions.groupby("country")["geometry"].apply(
+    #     lambda x: x.union_all()
+    # )
+    # country_shapes.crs = regions.crs
+    # country_shapes.index.name = "name"
+    # country_shapes.reset_index().to_file(snakemake.output.country_shapes)
+
+    # europe_shape = gpd.GeoDataFrame(
+    #     geometry=[country_cover(country_shapes, offshore_shapes.geometry)],
+    #     crs=country_shapes.crs,
+    # )
+    # europe_shape.reset_index().to_file(snakemake.output.europe_shape)
+
+    # # Export regions including GDP and POP data
+    # logger.info(
+    #     f"Exporting NUTS3 and ADM1 shapes with GDP and POP values to {snakemake.output.nuts3_shapes}."
+    # )
+    # regions.reset_index().to_file(snakemake.output.nuts3_shapes)
+
     # Offshore regions
     offshore_shapes = eez(snakemake.input.eez, snakemake.params.countries)
-    offshore_shapes.reset_index().to_file(snakemake.output.offshore_shapes)
+
+    logger.info(f"Exporting offshore shapes to {snakemake.output.offshore_shapes}")
+    gpd.GeoDataFrame(offshore_shapes.reset_index(), geometry="geometry", crs=offshore_shapes.crs) \
+    .to_file(snakemake.output.offshore_shapes, driver="GeoJSON")
 
     # Onshore regions
     regions = create_regions(
@@ -636,22 +679,21 @@ if __name__ == "__main__":
         snakemake.input.other_gdp,
         snakemake.input.other_pop,
     )
-
-    country_shapes = regions.groupby("country")["geometry"].apply(
-        lambda x: x.union_all()
-    )
-    country_shapes.crs = regions.crs
+    # country_shapes: fuerza GeoSeries/GeoDataFrame
+    country_shapes = regions.groupby("country")["geometry"].apply(lambda x: x.union_all())
+    country_shapes = gpd.GeoSeries(country_shapes, crs=regions.crs)
     country_shapes.index.name = "name"
-    country_shapes.reset_index().to_file(snakemake.output.country_shapes)
 
+    logger.info(f"Exporting country shapes to {snakemake.output.country_shapes}")
+    gpd.GeoDataFrame(country_shapes.reset_index(name="geometry"), geometry="geometry", crs=regions.crs) \
+    .to_file(snakemake.output.country_shapes, driver="GeoJSON")
+
+    logger.info(f"Exporting europe shape to {snakemake.output.europe_shape}")
     europe_shape = gpd.GeoDataFrame(
         geometry=[country_cover(country_shapes, offshore_shapes.geometry)],
-        crs=country_shapes.crs,
+        crs=regions.crs,
     )
-    europe_shape.reset_index().to_file(snakemake.output.europe_shape)
+    europe_shape.to_file(snakemake.output.europe_shape, driver="GeoJSON")
 
-    # Export regions including GDP and POP data
-    logger.info(
-        f"Exporting NUTS3 and ADM1 shapes with GDP and POP values to {snakemake.output.nuts3_shapes}."
-    )
-    regions.reset_index().to_file(snakemake.output.nuts3_shapes)
+    logger.info(f"Exporting nuts3 shapes to {snakemake.output.nuts3_shapes}")
+    regions.reset_index().to_file(snakemake.output.nuts3_shapes, driver="GeoJSON")

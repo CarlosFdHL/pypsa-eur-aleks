@@ -1068,13 +1068,21 @@ def attach_stores(
         Dictionary of extendable energy carriers.
     """
     carriers = extendable_carriers["Store"]
-
     n.add("Carrier", carriers)
 
     buses_i = n.buses.index
 
     if "H2" in carriers:
-        h2_buses_i = n.add("Bus", buses_i + " H2", carrier="H2", location=buses_i)
+        # CARLOS CHANGE --------------------------------------------------------------------------------
+        # Current version of PyPSA does not return Index when doing n.add(...)
+
+        # h2_buses_i = n.add("Bus", buses_i + " H2", carrier="H2", location=buses_i)
+
+        h2_buses_i = buses_i + " H2"
+
+        n.add("Bus", buses_i + " H2", carrier="H2", location=buses_i)
+
+        # END CARLOS CHANGE ----------------------------------------------------------------------------
 
         n.add(
             "Store",
@@ -1113,9 +1121,16 @@ def attach_stores(
         )
 
     if "battery" in carriers:
-        b_buses_i = n.add(
+        # CARLOS CHANGE ------------------------------------------------------------
+        # Current version of PyPSA does not return Index when doing n.add(...)
+        # b_buses_i = n.add(
+        #     "Bus", buses_i + " battery", carrier="battery", location=buses_i
+        # )
+        n.add(
             "Bus", buses_i + " battery", carrier="battery", location=buses_i
         )
+        b_buses_i = buses_i + " battery"
+        # END CARLOS CHANGE --------------------------------------------------------
 
         n.add(
             "Store",

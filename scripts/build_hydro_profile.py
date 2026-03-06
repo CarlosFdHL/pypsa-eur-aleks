@@ -36,6 +36,8 @@ from scripts._helpers import (
     load_cutout,
     set_scenario_config,
 )
+import xarray as xr
+import numpy as np
 
 cc = coco.CountryConverter()
 
@@ -214,4 +216,20 @@ if __name__ == "__main__":
     if "clip_min_inflow" in params_hydro:
         inflow = inflow.where(inflow > params_hydro["clip_min_inflow"], 0)
 
-    inflow.to_netcdf(snakemake.output.profile)
+    ds = inflow.to_dataset(name="inflow") if isinstance(inflow, xr.DataArray) else inflow
+
+    # CARLOS CHANGE -------------------------------------------------------------------
+
+    # Fix pandas StringDtype on string coordinate "countries"
+    # if "countries" in ds.coords:
+    #     countries_bytes = np.asarray(
+    #         [str(x) for x in ds["countries"].values],
+    #         dtype="S2",  # fixed-length 2-byte strings (ISO country codes) -> When reading back, these will be decoded to regular strings in later rules.
+    #     )
+    #     ds = ds.assign_coords(countries=("countries", countries_bytes))
+
+    ds.to_netcdf(snakemake.output.profile)
+
+    # inflow.to_netcdf(snakemake.output.profile)
+    # END CARLOS CHANGE ----------------------------------------------------------------
+

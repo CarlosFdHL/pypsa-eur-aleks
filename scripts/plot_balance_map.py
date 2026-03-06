@@ -129,7 +129,11 @@ if __name__ == "__main__":
     buses = n.buses.query("carrier in @carrier").index
     weights = n.snapshot_weightings.generators
     prices = weights @ n.buses_t.marginal_price[buses] / weights.sum()
+
     level = "name" if PYPSA_V1 else "Bus"
+    # CARLOS CHANGE --------------------------------------------------------------------------------
+    level = "name"
+    # END CARLOS CHANGE --------------------------------------------------------------------------------
     price = prices.rename(n.buses.location).groupby(level=level).mean()
 
     if carrier == "co2 stored" and "CO2Limit" in n.global_constraints.index:

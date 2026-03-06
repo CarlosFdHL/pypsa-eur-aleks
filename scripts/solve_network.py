@@ -54,11 +54,25 @@ from scripts._helpers import (
 
 logger = logging.getLogger(__name__)
 
-# Allow for PyPSA versions <0.35
-if PYPSA_V1:
-    pypsa.network.power_flow.logger.setLevel(logging.WARNING)
-else:
-    pypsa.pf.logger.setLevel(logging.WARNING)
+# CARLOS CHANGE --------------------------------------------------------------------------------
+# # Allow for PyPSA versions <0.35
+# if PYPSA_V1:
+#     pypsa.network.power_flow.logger.setLevel(logging.WARNING)
+# else:
+#     pypsa.pf.logger.setLevel(logging.WARNING)
+
+# --- compatibility: pypsa.pf may not exist in some versions ---
+import logging
+
+try:
+    pypsa.pf.logger.setLevel(logging.WARNING)  # old API
+except AttributeError:
+    logging.getLogger("pypsa").setLevel(logging.WARNING)  # new/other API
+    logging.getLogger("pypsa.network").setLevel(logging.WARNING)
+    logging.getLogger("pypsa.linopf").setLevel(logging.WARNING)
+# --- end compatibility --
+# END CARLOS CHANGE --------------------------------------------------------------------------------
+
 
 
 class ObjectiveValueError(Exception):
@@ -202,7 +216,11 @@ def add_solar_potential_constraints(n: pypsa.Network, config: dict) -> None:
         "solar-hsat": config["renewable"]["solar"]["capacity_per_sqkm"]
         / config["renewable"]["solar-hsat"]["capacity_per_sqkm"],
     }
+    # CARLOS CHANGE --------------------------------------------------------------------------------
+    # NO GENERATOR-EXT IN PYPSA V1, SO RENAME NOT NEEDED
     rename = {} if PYPSA_V1 else {"Generator-ext": "Generator"}
+    rename = {}
+    # END CARLOS CHANGE --------------------------------------------------------------------------------
 
     solar_carriers = ["solar", "solar-hsat"]
     solar = n.generators[
