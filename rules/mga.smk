@@ -15,6 +15,7 @@ rule compute_near_opt:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
     output:
         near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
+        network_hash=RESULTS + "near_opt/network_hash.txt",
     log:
         python=RESULTS + "logs/mga/compute_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
     benchmark:
@@ -83,4 +84,3 @@ rule validation_mga:
         "../envs/environment.yaml"
     script:
         "../scripts/test_mga_operations.py"
-

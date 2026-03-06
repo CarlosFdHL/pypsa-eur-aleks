@@ -21,7 +21,7 @@ from _helpers import (
 )
 from mga_helpers import export_mga_capacities
 from solve_second_network import fix_networks
-from pypsa.optimization.mga import hash_direction
+from pypsa.optimization.mga import hash_direction, hash_mga
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +343,7 @@ if __name__ == "__main__":
 
     # Get solver configuration
     solver_config = snakemake.config.get("solving", {})
-    solver_name = solver_config.get("solver", {}).get("name", "highs")
+    solver_name = solver_config.get("solver", {}).get("name", "gurobi")
     solver_options = solver_config.get("solver_options", {}).get(
         solver_config.get("solver", {}).get("options", "default"), {}
     )
@@ -366,11 +366,27 @@ if __name__ == "__main__":
 
     logger.info(f"Successfully solved {len(successful_directions)} out of {len(directions_df)} directions")
 
+    # Compute network hash for storage
+    logger.info("Computing network hash")
+    network_hash = hash_mga(
+        m,
+        dimensions,
+        slack,
+        snapshots=None,  # Uses all snapshots
+        multi_investment_periods=False,
+    )
+    logger.info(f"Network hash: {network_hash}")
+
     # Combine and export results
     logger.info("Combining results")
     combined_results = combine_results(successful_directions, successful_coordinates)
 
     logger.info(f"Exporting results to {snakemake.output.near_opt_solutions}")
     combined_results.to_csv(snakemake.output.near_opt_solutions, index=False)
+
+    # Save network hash to separate file
+    hash_file = Path(snakemake.output.near_opt_solutions).parent / "network_hash.txt"
+    logger.info(f"Saving network hash to {hash_file}")
+    hash_file.write_text(network_hash)
 
     logger.info("MGA computation complete")

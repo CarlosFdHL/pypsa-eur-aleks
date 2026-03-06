@@ -4,6 +4,7 @@
 
 import yaml
 import pandas as pd
+import hashlib
 from pathlib import Path
 
 def design_years(file_path):
@@ -81,59 +82,68 @@ def get_network_hash_from_cache(cache_dir):
     return network_hashes
 
 
-def get_network_hash_for_near_opt(near_opt_file, cache_dir):
+def compute_network_hash(network_file):
     """
-    Get the specific network hash for a given near_opt CSV file.
-
-    Reads the near_opt file and finds matching caps files in the cache
-    to extract the network_hash.
+    Compute MD5 hash of a network file.
 
     Parameters
     ----------
-    near_opt_file : str or Path
-        Path to near_opt_solutions CSV file
-    cache_dir : str or Path
-        Path to cache directory
+    network_file : str or Path
+        Path to network .nc file
 
     Returns
     -------
     str or None
-        Network hash for this near_opt file, or None if not found
+        First 8 characters of MD5 hash, or None if file doesn't exist
     """
-    file_path = Path(near_opt_file)
+    file_path = Path(network_file)
     if not file_path.exists():
         return None
 
-    cache_path = Path(cache_dir)
-    if not cache_path.exists():
-        return None
-
     try:
-        # Read first direction hash from near_opt file
-        df = pd.read_csv(file_path)
-        if 'dir_hash' not in df.columns or len(df) == 0:
-            return None
-
-        first_dir_hash = df['dir_hash'].iloc[0]
-
-        # Find caps file matching this direction
-        caps_dir = cache_path / 'caps'
-        if not caps_dir.exists():
-            return None
-
-        # Look for caps file: caps_{network_hash}_{dir_hash}.csv
-        matching_caps = list(caps_dir.glob(f'caps_*_{first_dir_hash}.csv'))
-        if matching_caps:
-            # Extract network_hash from filename
-            filename = matching_caps[0].stem  # e.g., 'caps_abc123_def456'
-            # Remove 'caps_' prefix and '_{dir_hash}' suffix
-            network_hash = filename.replace('caps_', '').replace(f'_{first_dir_hash}', '')
-            return network_hash
-
-        return None
+        hasher = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):  # 64kb chunks
+                hasher.update(chunk)
+        # Return first 8 characters like other hashes in the system
+        return hasher.hexdigest()[:8]
     except Exception as e:
-        print(f"Warning: Could not get network hash for {near_opt_file}: {e}")
+        print(f"Warning: Could not compute hash for {network_file}: {e}")
         return None
+
+
+def get_network_hash_for_near_opt(near_opt_file, cache_dir, design_year=None, scenario=None):
+    """
+    Get the specific network hash for a given near_opt CSV file.
+
+    Computes the hash directly from the network file used for that design_year.
+
+    Parameters
+    ----------
+    near_opt_file : str or Path
+        Path to near_opt_solutions CSV file (used for validation only)
+    cache_dir : str or Path
+        Path to cache directory (unused, kept for compatibility)
+    design_year : str, optional
+        Design year (e.g., 'weather_year_2013_3H')
+    scenario : str, optional
+        Scenario string (e.g., 'base_s_50_lv1.0_50seg_Co2L0.0+T+H+B+I+A_2050')
+
+    Returns
+    -------
+    str or None
+        Network hash for this design_year, or None if not found
+    """
+    if design_year is None or scenario is None:
+        return None
+
+    # Construct path to network file for this design_year
+    network_file = (
+        f"results/{config['run']['prefix']}/{design_year}/networks/"
+        f"{scenario}.nc"
+    )
+
+    return compute_network_hash(network_file)
 
 
 
@@ -238,7 +248,7 @@ rule validate_mga_solutions:
             for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
             # Dynamic lookups from files
             for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
-            for network_hash in [get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache")) or ""]
+            for network_hash in [get_network_hash_for_near_opt(near_opt_file, config.get("near-opt", {}).get("cache_dir", "mga-cache"), design_year=design_year, scenario=scenario) or ""]
             for dir_hash in get_mga_directions(near_opt_file)
             if network_hash  # Skip if network_hash lookup failed
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
