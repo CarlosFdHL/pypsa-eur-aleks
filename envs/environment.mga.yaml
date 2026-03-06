@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: CC0-1.0
 
-name: pypsa-eur-aleks-mga
+name: pypsa-eur-mga
 channels:
 - conda-forge
 - bioconda
@@ -33,7 +33,7 @@ dependencies:
 - pytables
 - lxml
 - numpy
-- pandas>=2.1
+- pandas>=2.1, <2.5 # 3 causes problems with xarray: str object has no attribute 'dtype'
 - geopandas>=1
 - xarray>=2024.03.0,<2025.07.0
 - rioxarray
