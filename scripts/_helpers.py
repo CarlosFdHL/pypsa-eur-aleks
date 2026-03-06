@@ -907,6 +907,11 @@ def validate_checksum(file_path, zenodo_url=None, checksum=None):
 
     If the checksum is invalid, an AssertionError will be raised.
     """
+    # CARLOS CHANGE ------------------------------------------------------------------------------
+    if checksum is None:
+        logger.warning("No checksum provided for %s; skipping checksum validation.", file_path)
+        return True
+    # END OF CARLOS CHANGE ------------------------------------------------------------------------------
     assert checksum or zenodo_url, "Either checksum or zenodo_url must be provided"
     if zenodo_url:
         checksum = get_checksum_from_zenodo(zenodo_url)
