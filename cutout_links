@@ -1,13 +1,13 @@
 # for y in {1941..2020}; do mkdir -p cutouts/sector_droughts+h2+co2/weather_year_${y}_3H && for f in $EXTREMES/cutouts/europe-*-*-era5.nc; do ln -sfn "$f" cutouts/sector_droughts+h2+co2/weather_year_${y}_3H/; done; done
 for y in {1941..2023}; do
-  mkdir -p "cutouts/sector_droughts-mga_wind/weather_year_${y}_3H"
+  mkdir -p "cutouts/mini-sector_droughts_mga1/weather_year_${y}_336H"
   for f in /groups/EXTREMES/cutouts/europe-*-*-era5.nc; do
     b=$(basename "$f")
     a=${b#europe-}; a=${a%-era5.nc}     
     y0=${a%-*}; y1=${a#*-}            
 
     if (( y >= y0 && y < y1 )); then    
-      ln -sfn "$f" "cutouts/sector_droughts-mga_wind/weather_year_${y}_3H/"
+      ln -sfn "$f" "cutouts/mini-sector_droughts_mga1/weather_year_${y}_336H/"
       break
     fi
   done

@@ -64,9 +64,9 @@ logger = logging.getLogger(__name__)
 # --- compatibility: pypsa.pf may not exist in some versions ---
 import logging
 
-try:
-    pypsa.pf.logger.setLevel(logging.WARNING)  # old API
-except AttributeError:
+if hasattr(pypsa, "pf") and hasattr(pypsa.pf, "logger"):
+    pypsa.pf.logger.setLevel(logging.WARNING)
+else:
     logging.getLogger("pypsa").setLevel(logging.WARNING)  # new/other API
     logging.getLogger("pypsa.network").setLevel(logging.WARNING)
     logging.getLogger("pypsa.linopf").setLevel(logging.WARNING)

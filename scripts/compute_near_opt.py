@@ -13,6 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pypsa
+from pathlib import Path
 
 from _helpers import (
     configure_logging,
@@ -385,8 +386,7 @@ if __name__ == "__main__":
     combined_results.to_csv(snakemake.output.near_opt_solutions, index=False)
 
     # Save network hash to separate file
-    hash_file = Path(snakemake.output.near_opt_solutions).parent / "network_hash.txt"
-    logger.info(f"Saving network hash to {hash_file}")
-    hash_file.write_text(network_hash)
+    logger.info(f"Saving network hash to {snakemake.output.network_hash}")
+    Path(snakemake.output.network_hash).write_text(network_hash)
 
     logger.info("MGA computation complete")
