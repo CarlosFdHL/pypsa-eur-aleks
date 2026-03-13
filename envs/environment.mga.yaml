@@ -5,7 +5,7 @@
 # Canonical environment file for pypsa-eur-mga (supersedes environment.mga.v2.yaml).
 # See environment.mga.v2.yaml for the legacy name used on sophia.
 
-name: pypsa-eur-mga
+name: pypsa-eur-mga-v2026.02
 channels:
 - conda-forge
 - bioconda
@@ -53,7 +53,7 @@ dependencies:
 # pypsa excluded - install local mga-caching fork via: pip install -e /path/to/pypsa-dev
 - pyscipopt >=5.6.0
 - pytables >=3.10.2
-- python >=3.10
+- python >=3.10, <3.13
 - pytz >=2025.2
 - pyxlsb >=1.0.10
 - rasterio >=1.4.3
