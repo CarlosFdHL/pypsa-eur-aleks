@@ -389,4 +389,34 @@ if __name__ == "__main__":
     logger.info(f"Saving network hash to {snakemake.output.network_hash}")
     Path(snakemake.output.network_hash).write_text(network_hash)
 
+    if approx_config.get("iterations", 0) == 0 and snakemake.params.get("save_network", False):
+        wc = snakemake.wildcards
+        network_dir = Path(snakemake.params.results_dir) / "near_opt" / "networks"
+        network_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"save_network=True: saving minmax networks to {network_dir}")
+
+        for _, direction_row in successful_directions.iterrows():
+            dir_hash = hash_direction(direction_row)
+            caps_path = Path(cache_dir) / "caps" / f"caps_{network_hash}_{dir_hash}.csv"
+
+            if not caps_path.exists():
+                logger.warning(f"Cache not found for dir_hash={dir_hash}, skipping: {caps_path}")
+                continue
+
+            # Apply optimised capacities from cache onto a fresh copy
+            # ── NEW: read caps and write p_nom_opt back into network copy ─────
+            n_out = m.copy()
+            caps = pd.read_csv(caps_path, index_col=[0, 1])
+            for (component, asset), row in caps.iterrows():
+                df = n_out.df(component)
+                if asset in df.index and "p_nom_opt" in row:
+                    df.loc[asset, "p_nom_opt"] = row["p_nom_opt"]
+
+            filename = (
+                f"base_s_{wc.clusters}_{wc.opts}_{wc.sector_opts}_{wc.planning_horizons}"
+                f"_{network_hash}_{dir_hash}.nc"
+            )
+            n_out.export_to_netcdf(str(network_dir / filename))
+            logger.info(f"Saved network in {network_dir / filename}")
+
     logger.info("MGA computation complete")
