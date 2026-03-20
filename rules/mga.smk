@@ -18,10 +18,6 @@ rule compute_near_opt:
     output:
         near_opt_solutions=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.csv",
         network_hash=RESULTS + "near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_network_hash.txt",
-        network=RESULTS + "near_opt/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
-            if (config.get("near-opt", {}).get("approx", {}).get("iterations", 1) == 0
-                and config.get("near-opt", {}).get("approx", {}).get("save_network", False))
-            else [],
     log:
         python=RESULTS + "logs/mga/compute_near_opt/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
     benchmark:

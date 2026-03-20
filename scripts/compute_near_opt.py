@@ -404,7 +404,6 @@ if __name__ == "__main__":
                 continue
 
             # Apply optimised capacities from cache onto a fresh copy
-            # ── NEW: read caps and write p_nom_opt back into network copy ─────
             n_out = m.copy()
             caps = pd.read_csv(caps_path, index_col=[0, 1])
             for (component, asset), row in caps.iterrows():
@@ -413,8 +412,7 @@ if __name__ == "__main__":
                     df.loc[asset, "p_nom_opt"] = row["p_nom_opt"]
 
             filename = (
-                f"base_s_{wc.clusters}_{wc.opts}_{wc.sector_opts}_{wc.planning_horizons}"
-                f"_{network_hash}_{dir_hash}.nc"
+                f"{network_hash}_{dir_hash}.nc"
             )
             n_out.export_to_netcdf(str(network_dir / filename))
             logger.info(f"Saved network in {network_dir / filename}")
