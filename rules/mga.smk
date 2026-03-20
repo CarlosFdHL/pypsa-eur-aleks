@@ -17,10 +17,8 @@ rule compute_near_opt:
             "sector", "co2_sequestration_potential", default=200
         ),
         custom_extra_functionality=input_custom_extra_functionality,
-<<<<<<< HEAD
         save_network=config_provider("near-opt", "approx", "save_network", default=False),  
         results_dir=RESULTS,  
-=======
         total_directions=lambda w: (
             (2 * len(config_provider("near-opt", "projection")(w)) if config_provider("near-opt", "approx", "minmax")(w) else 0)
             + config_provider("near-opt", "approx", "iterations")(w)
@@ -29,7 +27,6 @@ rule compute_near_opt:
     message:
         "Computing near-optimal solutions for {wildcards.run} "
         "({params.total_directions} directions, slack={params.slack})"
->>>>>>> upstream/sector-droughts
     input:
         network=RESULTS + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
     output:
@@ -69,6 +66,8 @@ rule validation_mga:
             "sector", "co2_sequestration_potential", default=200
         ),
         custom_extra_functionality=input_custom_extra_functionality,
+        save_validation_network=config_provider("near-opt", "approx", "save_validation_network", default=False), 
+        results_dir=RESULTS, 
     message:
         "Validating near-optimal solution {wildcards.dir_hash} | "
         "design {wildcards.design_year} | stress {wildcards.operational_year} | "

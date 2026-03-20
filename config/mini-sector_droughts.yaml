@@ -41,7 +41,8 @@ near-opt:
   approx:
     minmax: true
     iterations: 10 # does not include minmax runs
-    save_network: True # only works if iterations = 0
+    save_network: true # only works if iterations = 0
+    save_validation_network: true
     directions: "random-uniform" # "halton"
     seed: 123 # possibly None
     max_parallel: 10
