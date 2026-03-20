@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz
+# SPDX-FileCopyrightText: 2026 Aleksander Grochowicz
 #
 # SPDX-License-Identifier: MIT
 """
-Generate MGA direction files for checkpoint-based parallelization.
+Generate near-optimal direction files for checkpoint-based parallelization.
 
 Creates one JSON file per direction + manifest for snakemake discovery.
 This enables multi-node parallel solving where each batch of directions
@@ -23,7 +23,7 @@ from _helpers import (
     update_config_from_wildcards,
 )
 from solve_second_network import fix_networks
-from pypsa.optimization.mga import hash_mga
+from pypsa.optimization.mga import hash_direction, hash_mga
 
 # Import direction generation functions from compute_near_opt
 from compute_near_opt import (
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         from _helpers import mock_snakemake
 
         snakemake = mock_snakemake(
-            "generate_mga_directions",
+            "generate_near_opt_directions",
             opts="",
             clusters="50",
             configfiles="config/mini-sector_droughts.yaml",
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     logger.info("Fixing network capacities")
     fix_networks(m, n)
 
-    # Load MGA configuration
+    # Load near-opt configuration
     mga_config = snakemake.config.get("near-opt", {})
     if not mga_config:
         raise ValueError("No 'near-opt' configuration found in config file")
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         # Absolute slack in currency units
         absolute_slack = float(slack_config.get("value", 0.0))
         if not hasattr(n, 'objective'):
-            raise ValueError("Network has no objective value. Run optimization first.")
+            raise ValueError("Network has no objective value. Run optimisation first.")
         # Convert objective to scalar - handle various types
         obj = n.objective
         if isinstance(obj, (pd.Series, pd.DataFrame)):
@@ -97,9 +97,9 @@ if __name__ == "__main__":
     dimensions = fill_dimension_weights(m, dimensions)
 
     dimension_names = list(dimensions.keys())
-    logger.info(f"MGA dimensions: {dimension_names}")
+    logger.info(f"Near-opt dimensions: {dimension_names}")
 
-    # Generate directions (extracted from compute_near_opt.py lines 305-338)
+    # Generate directions
     approx_config = mga_config.get("approx", {})
     all_directions = []
 
@@ -149,9 +149,7 @@ if __name__ == "__main__":
     output_dir = Path(snakemake.output.directions_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save each direction as JSON with hash from pypsa-mga
-    from pypsa.optimization.mga import hash_direction
-
+    # Save each direction as JSON
     direction_hashes = []
     for idx, row in directions_df.iterrows():
         # Use pypsa-mga's hash_direction for consistency

@@ -9,6 +9,7 @@ Loads MGA capacities from cache, applies them to the base network, and runs
 dispatch optimization with weather from a different year.
 """
 
+import json
 import logging
 import pandas as pd
 import numpy as np
@@ -128,9 +129,12 @@ if __name__ == "__main__":
     mga_capacities = load_mga_capacities(snakemake.input.mga_capacities)
 
     # Add small operational buffer to avoid numerical infeasibilities
-    # when operating with different weather patterns
-    buffer = 0.001  # 0.1% buffer
-    logger.info(f"Adding {buffer*100:.1f}% operational buffer to all MGA capacities")
+    # when operating with different weather patterns.
+    # Buffer increases with each retry attempt.
+    capacity_buffers = [0.001, 0.005, 0.01, 0.02]
+    attempt = getattr(snakemake, "attempt", 1)
+    buffer = capacity_buffers[min(attempt - 1, len(capacity_buffers) - 1)]
+    logger.info(f"Adding {buffer*100:.2f}% operational buffer to all MGA capacities (attempt {attempt})")
     mga_capacities['value'] *= (1 + buffer)
 
     apply_mga_capacities(n, mga_capacities)
@@ -181,6 +185,14 @@ if __name__ == "__main__":
                 planning_horizons=planning_horizons,
             )
             status, condition = n.optimize.solve_model(**solve_kwargs)
+            if status == "warning":
+                logger.warning(
+                    f"Solver status: {status}, condition: {condition}"
+                )
+                try:
+                    n.model.print_infeasibilities()
+                except AttributeError:
+                    logger.warning("print_infeasibilities not available in this pypsa version")
 
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
@@ -190,6 +202,18 @@ if __name__ == "__main__":
         # Export shedding results (no full network to save disk space)
         load_shedding.round(3).to_csv(snakemake.output.load_shedding)
         heat_shedding.round(3).to_csv(snakemake.output.heat_shedding)
+
+        # Record metadata so analysis can flag solutions that needed buffer relaxation.
+        # Written alongside load_shedding but not tracked by snakemake as a required output.
+        metadata_path = snakemake.output.load_shedding.replace("_load_shedding.csv", "_metadata.json")
+        metadata = {
+            "attempt": attempt,
+            "buffer": buffer,
+            "status": status,
+            "condition": condition,
+        }
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
 
         logger.info(f"MGA validation complete for direction {snakemake.wildcards.dir_hash}, year {snakemake.wildcards.operational_year}")
 

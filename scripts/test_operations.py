@@ -7,6 +7,7 @@ Solves linear optimal dispatch in hourly resolution using the capacities of
 previous capacity expansion in rule `solve_network`.
 """
 
+import json
 import logging
 
 import numpy as np
@@ -143,6 +144,17 @@ if __name__ == "__main__":
 
     planning_horizons = snakemake.wildcards.get("planning_horizons", "")
 
+    # Add small buffer to optimal capacities to avoid numerical infeasibilities
+    # when running under a different weather year. Scales with retry attempt.
+    capacity_buffers = [0.001, 0.005, 0.01, 0.02]
+    attempt = getattr(snakemake, "attempt", 1)
+    buffer = capacity_buffers[min(attempt - 1, len(capacity_buffers) - 1)]
+    logger.info(f"Adding {buffer*100:.2f}% capacity buffer (attempt {attempt})")
+    for comp in [n.generators, n.links, n.stores, n.storage_units]:
+        for attr in ["p_nom_opt", "e_nom_opt"]:
+            if attr in comp.columns:
+                comp[attr] *= (1 + buffer)
+
     try:
         set_weather(n, m)
         n.optimize.fix_optimal_capacities()
@@ -179,7 +191,15 @@ if __name__ == "__main__":
                 planning_horizons=planning_horizons,
             )
             status, condition = n.optimize.solve_model(**solve_kwargs)
-        
+            if status == "warning":
+                logger.warning(
+                    f"Solver status: {status}, condition: {condition}"
+                )
+                try:
+                    n.model.print_infeasibilities()
+                except AttributeError:
+                    logger.warning("print_infeasibilities not available in this pypsa version")
+
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
         n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
@@ -191,6 +211,12 @@ if __name__ == "__main__":
         # Export the results
         load_shedding.round(3).to_csv(snakemake.output.load_shedding)
         heat_shedding.round(3).to_csv(snakemake.output.heat_shedding)
+
+        # Write metadata sidecar (not tracked by snakemake)
+        metadata_path = snakemake.output.load_shedding.replace("_load_shedding.csv", "_metadata.json")
+        with open(metadata_path, "w") as f:
+            json.dump({"attempt": attempt, "buffer": buffer, "status": status, "condition": condition}, f, indent=2)
+
     except Exception as e:
-        logger.error(f"Error setting weather: {e}")
+        logger.exception(f"Error in test_operations: {e}")
         sys.exit(1)

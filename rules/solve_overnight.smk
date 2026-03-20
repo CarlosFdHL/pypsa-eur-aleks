@@ -160,7 +160,7 @@ rule test_operations:
         load_shedding= RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_load_shedding.csv",
         heat_shedding= RESULTS + "validation/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_heat_shedding.csv",
     shadow:
-        shadow_config
+        None
     log:
         solver=RESULTS
         + "logs/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_solver.log",
@@ -168,10 +168,11 @@ rule test_operations:
         + "logs/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_memory.log",
         python=RESULTS
         + "logs/{operational_year}_base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_python.log",
+    retries: 3
     threads: solver_threads
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
-        runtime=config_provider("solving", "runtime", default="6h"),
+        runtime=8 * 60,
     benchmark:
         (
             RESULTS

@@ -245,6 +245,16 @@ rule compute_mga_solutions:
         ) if config.get("near-opt", {}).get("enable", False) else [],
 
 
+rule collect_mga_summaries:
+    """Collect MGA validation summaries for all design years."""
+    input:
+        lambda w: [
+            f"results/{config['run']['prefix']}/{design_year}/validation/_summary_{scenario}.csv"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
+        ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
+
+
 rule validate_mga_solutions:
     """Validate all MGA capacity solutions with different operational weather years."""
     input:
