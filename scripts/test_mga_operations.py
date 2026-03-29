@@ -222,13 +222,11 @@ if __name__ == "__main__":
 
         if n_iterations == 0 and save_val_network:
             wc = snakemake.wildcards
-            network_dir = Path(snakemake.params.results_dir) / "validation" / "networks"
-            network_dir.mkdir(parents=True, exist_ok=True)
-
+            
             filename = f"{wc.network_hash}_{wc.dir_hash}_{wc.operational_year}.nc"
-            out_path = network_dir / filename
+            out_path = Path(snakemake.params.results_dir) / filename
 
-            n.export_to_netcdf(str(out_path))
+            n.export_to_netcdf(out_path)
             logger.info(f"Saved validation network → {out_path}")
 
         logger.info(f"MGA validation complete for direction {snakemake.wildcards.dir_hash}, year {snakemake.wildcards.operational_year}")

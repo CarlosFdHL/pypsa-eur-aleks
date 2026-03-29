@@ -7,7 +7,7 @@ import json
 
 # Prefer parallel aggregation over monolithic compute when both could produce the output
 ruleorder: aggregate_near_opt > compute_near_opt
-
+ruleorder: validation_mga > test_operations
 
 rule compute_near_opt:
     params:
@@ -67,7 +67,7 @@ rule validation_mga:
         ),
         custom_extra_functionality=input_custom_extra_functionality,
         save_validation_network=config_provider("near-opt", "approx", "save_validation_network", default=False), 
-        results_dir=RESULTS, 
+        results_dir=lambda wildcards: "results/" + config["run"]["prefix"] + "/" + wildcards.design_year + "/networks/validation", 
     message:
         "Validating near-optimal solution {wildcards.dir_hash} | "
         "design {wildcards.design_year} | stress {wildcards.operational_year} | "
