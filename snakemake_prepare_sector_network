@@ -1,1 +1,10 @@
-snakemake prepare_sector_networks --rerun-incomplete --latency-wait 100 --executor cluster-generic --cluster-generic-submit-cmd "sbatch --parsable -p workq,fatq -n 1 --output=slurm_logs/slurm-%j.out --error=slurm_logs/slurm-%j.err --cpus-per-task={threads}" "$@"
+#!/bin/bash
+LOG_DIR="${SLURM_LOG_DIR:-slurm_logs}"
+mkdir -p "$LOG_DIR"
+
+snakemake --rerun-incomplete --latency-wait 100 \
+    --executor cluster-generic \
+    --cluster-generic-submit-cmd "sbatch --parsable -p workq -n 1 --exclusive \
+        --output=${LOG_DIR}/slurm-%j.out \
+        --time=48:00:00 --cpus-per-task=32" \
+    "$@"
