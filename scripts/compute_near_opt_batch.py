@@ -113,9 +113,6 @@ if __name__ == "__main__":
     cache_dir = mga_config.get("cache_dir", None)
 
     logger.info(f"Using solver: {solver_name}, cache_dir: {cache_dir}")
-
-    logger.info("CO2 atmosphere in n: %s", n.stores[n.stores['bus'] == 'co2 atmosphere'].e_cyclic.item())
-    logger.info("CO2 atmosphere in m: %s", m.stores[m.stores['bus'] == 'co2 atmosphere'].e_cyclic.item())
     # Set co2 atmosphere store to cyclic
     if m.stores[m.stores['bus'] == 'co2 atmosphere'].e_cyclic.item() == False:
         idx = m.stores.index[m.stores["bus"].eq("co2 atmosphere")]
