@@ -99,7 +99,7 @@ def extract_optimal_capacities(n):
 
 def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash, check_only=False):
     """
-    Export or check optimal capacities for an MGA solution.
+    Export or check optimal capacities (and optionally the network) for an MGA solution.
 
     This function is designed to be used as mga_extra_functionality callback
     in pypsa-mga optimization.
@@ -118,30 +118,30 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
         Direction vector hash
     check_only : bool, default False
         If True, only check if capacities file exists and return bool.
-        If False, extract and export capacities.
+        If False, extract and export capacities and network.
 
     Returns
     -------
     bool (only when check_only=True)
         True if capacities file exists, False otherwise
     """
-    # Construct output path
+    # Construct output paths
     caps_dir = Path(cache_dir) / "caps"
     caps_file = caps_dir / f"caps_{network_hash}_{direction_hash}.csv"
 
+    networks_dir = Path(cache_dir) / "networks"
+    network_file = networks_dir / f"{network_hash}_{direction_hash}.nc"
+
     if check_only:
-        # Just check if file exists
         return caps_file.exists()
 
-    # Create output directory
+    # Export capacities
     caps_dir.mkdir(parents=True, exist_ok=True)
-
-    # Extract capacities from solved network
     capacities = extract_optimal_capacities(n)
-
-    # Save to file
     capacities.to_csv(caps_file, index=False)
+    logger.info(f"Exported {len(capacities)} capacities to {caps_file.name}")
 
-    logger.info(
-        f"Exported {len(capacities)} capacities to {caps_file.name}"
-    )
+    # Export network
+    networks_dir.mkdir(parents=True, exist_ok=True)
+    n.export_to_netcdf(str(network_file))
+    logger.info(f"Exported network to {network_file.name}")
