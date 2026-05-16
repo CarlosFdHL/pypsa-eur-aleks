@@ -114,6 +114,14 @@ if __name__ == "__main__":
 
     logger.info(f"Using solver: {solver_name}, cache_dir: {cache_dir}")
 
+    logger.info("CO2 atmosphere in n: %s", n.stores[n.stores['bus'] == 'co2 atmosphere'].e_cyclic.item())
+    logger.info("CO2 atmosphere in m: %s", m.stores[m.stores['bus'] == 'co2 atmosphere'].e_cyclic.item())
+    # Set co2 atmosphere store to cyclic
+    if m.stores[m.stores['bus'] == 'co2 atmosphere'].e_cyclic.item() == False:
+        idx = m.stores.index[m.stores["bus"].eq("co2 atmosphere")]
+        m.stores.loc[idx, "e_cyclic"] = True
+    logger.info("Set 'co2 atmosphere' store to cyclic")
+
     # Run near-opt optimisation for this batch
     successful_directions, successful_coordinates = (
         m.optimize.optimize_mga_in_multiple_directions(

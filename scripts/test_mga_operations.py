@@ -11,6 +11,7 @@ dispatch optimization with weather from a different year.
 
 import json
 import logging
+import os
 import pandas as pd
 import numpy as np
 import pypsa
@@ -148,6 +149,11 @@ if __name__ == "__main__":
         set_weather(n, m)
         n.optimize.fix_optimal_capacities()
 
+        # NEW: set e_cyclic of co2 atmosphere to False
+        if n.stores[n.stores['bus'] == 'co2 atmosphere'].e_cyclic.item() == True:
+            idx = n.stores.index[n.stores["bus"].eq("co2 atmosphere")]
+            n.stores.loc[idx, "e_cyclic"] = False
+
         # Prepare network
         prepare_network(
             n,
@@ -190,10 +196,11 @@ if __name__ == "__main__":
                 logger.warning(
                     f"Solver status: {status}, condition: {condition}"
                 )
-                try:
-                    n.model.print_infeasibilities()
-                except AttributeError:
-                    logger.warning("print_infeasibilities not available in this pypsa version")
+                # Commented for large models
+                # try:
+                #     n.model.print_infeasibilities()
+                # except AttributeError:
+                #     logger.warning("print_infeasibilities not available in this pypsa version")
 
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
@@ -225,7 +232,9 @@ if __name__ == "__main__":
             
             filename = f"{wc.network_hash}_{wc.dir_hash}_{wc.operational_year}.nc"
             out_path = Path(snakemake.params.results_dir) / filename
-
+            
+            # Ensure output directory exists before saving
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
             n.export_to_netcdf(out_path)
             logger.info(f"Saved validation network → {out_path}")
 
