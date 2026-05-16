@@ -392,6 +392,15 @@ plotting:
     dc: "DC"
 
   tech_colors:
+    # load shedding
+    Elec load: '#70af1d' #purple red
+    Load Shedding: '#d73027' 
+    Heat shed: '#dd2e23'
+    # Heating
+    Long-term thermal storage: '#c9c9c9'
+    Short-term thermal storage: '#70af1d'
+    Urban Central Heat: '#298c81'
+    Urban Decentral Heat: '#6895dd'
     # wind
     onwind: "#235ebc"
     onshore wind: "#235ebc"
@@ -413,7 +422,10 @@ plotting:
     run of river: '#3dbfb0'
     hydroelectricity: '#298c81'
     PHS: '#51dbcc'
+    PHS charger: '#51dbcc'
+    PHS discharger: '#51dbcc'
     hydro+PHS: "#08ad97"
+    Reservoir & Dam: '#298c81'
     # solar
     solar: "#f9d002"
     solar PV: "#f9d002"
@@ -522,6 +534,8 @@ plotting:
     battery storage: '#ace37f'
     battery charger: '#88a75b'
     battery discharger: '#5d4e29'
+    Battery charger: '#88a75b'
+    Battery discharger: '#5d4e29'
     home battery: '#80c944'
     home battery storage: '#80c944'
     home battery charger: '#5e8032'
