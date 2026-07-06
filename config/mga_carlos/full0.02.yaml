@@ -16,7 +16,7 @@ remote:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "full0.02_v3"
+  prefix: "full0.02_v5"
   name: "all"
   scenarios:
     enable: true
@@ -59,13 +59,22 @@ near-opt:
       - {carrier: onwind, component: Generator, attribute: p_nom, weight: capital_cost}
     solar_battery:
       - {carrier: solar, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: solar-hsat, component: Generator, attribute: p_nom, weight: capital_cost}
       - {carrier: battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: battery charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
+    solar:
+      - {carrier: solar, component: Generator, attribute: p_nom, weight: capital_cost}
+      - {carrier: solar-hsat, component: Generator, attribute: p_nom, weight: capital_cost}
     battery:
       - {carrier: battery, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: battery charger, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: battery discharger, component: Link, attribute: p_nom, weight: capital_cost}
     chp:
       - {carrier: urban central gas CHP, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: urban central gas CHP CC, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: urban central solid biomass CHP, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: urban central solid biomass CHP CC, component: Link, attribute: p_nom, weight: capital_cost} 
     heat_pumps:
       - {carrier: urban central air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: urban decentral air heat pump, component: Link, attribute: p_nom, weight: capital_cost}
@@ -75,14 +84,24 @@ near-opt:
       - {carrier: H2 Electrolysis, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: H2 Store, component: Store, attribute: e_nom, weight: capital_cost}    
       - {carrier: H2 Fuel Cell, component: Link, attribute: p_nom, weight: capital_cost}
+      - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
     e_fuels:
-      - {carrier: Fischer-Tropsch, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: Sabatier, component: Link, attribute: p_nom, weight: capital_cost}
-      - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}
+      - {carrier: Fischer-Tropsch, component: Link, attribute: p_nom, weight: capital_cost}       # oil. no biomass to liquid
+      - {carrier: oil, component: Store, attribute: e_nom, weight: capital_cost}                  # oil store
+
+      - {carrier: Sabatier, component: Link, attribute: p_nom, weight: capital_cost}              # methane (gas)
+      - {carrier: gas, component: Store, attribute: e_nom, weight: capital_cost}                  # gas store
+
+      - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}       # methanol
+      - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}             # methanol store
+
+      - {carrier: Haber-Bosch, component: Link, attribute: p_nom, weight: capital_cost}           # ammonia
+      - {carrier: ammonia store, component: Store, attribute: e_nom, weight: capital_cost}        # ammonia store
+      - {carrier: ammonia cracker, component: Link, attribute: p_nom, weight: capital_cost}       # ammonia cracker
+
   slack:
-    relative: true
-    value: 0.02 # 10 bn EUR
+    relative: false #true
+    value:  25.47015e9 #0.02 
   cache_dir: "mga-cache"
   validation:
     enable: true
@@ -1139,6 +1158,17 @@ solving:
       method: 2 # barrier
       crossover: 0
       BarConvTol: 1.e-5
+      Seed: 123
+      AggFill: 0
+      PreDual: 0
+      GURO_PAR_BARDENSETHRESH: 200
+    gurobi-default-v2:
+      BarHomogeneous: 1
+      NumericFocus: 2
+      threads: 32
+      method: 2 # barrier
+      crossover: 0
+      BarConvTol: 1.e-4 # reduced precision
       Seed: 123
       AggFill: 0
       PreDual: 0

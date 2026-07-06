@@ -397,15 +397,21 @@ plotting:
     Load Shedding: '#d73027' 
     Heat shed: '#dd2e23'
     # Heating
-    Long-term thermal storage: '#c9c9c9'
+    Long-term thermal storage: '#F227F5'
+    Water pits: '#F227F5'
+    Water pits ch/dis: '#F227F5'
     Short-term thermal storage: '#70af1d'
+    Water tanks: '#70af1d'
+    Water tanks ch/dis: '#70af1d'
     Urban Central Heat: '#298c81'
     Urban Decentral Heat: '#6895dd'
     # wind
     onwind: "#235ebc"
     onshore wind: "#235ebc"
+    Onshore wind: "#235ebc"
     offwind: "#6895dd"
     offshore wind: "#6895dd"
+    Offshore wind: "#6895dd"
     offwind-ac: "#6895dd"
     offshore wind (AC): "#6895dd"
     offshore wind ac: "#6895dd"
@@ -417,6 +423,7 @@ plotting:
     offshore wind float: "#b5e2fa"
     # water
     hydro: '#298c81'
+    Hydro: '#298c81'
     hydro reservoir: '#298c81'
     ror: '#3dbfb0'
     run of river: '#3dbfb0'
@@ -429,8 +436,10 @@ plotting:
     # solar
     solar: "#f9d002"
     solar PV: "#f9d002"
+    Solar PV: "#f9d002"
     solar-hsat: "#fdb915"
     solar thermal: '#ffbf2b'
+    Solar thermal: '#ffbf2b'
     residential rural solar thermal: '#f1c069'
     services rural solar thermal: '#eabf61'
     residential urban decentral solar thermal: '#e5bc5a'
@@ -441,9 +450,10 @@ plotting:
     OCGT: '#e0986c'
     OCGT marginal: '#e0986c'
     OCGT-heat: '#e0986c'
-    gas boiler: '#db6a25'
-    gas boilers: '#db6a25'
-    gas boiler marginal: '#db6a25'
+    gas boiler: '#c9c9c9'
+    Gas boiler: '#c9c9c9'
+    gas boilers: '#c9c9c9'
+    gas boiler marginal: '#c9c9c9'
     residential rural gas boiler: '#d4722e'
     residential urban decentral gas boiler: '#cb7a36'
     services rural gas boiler: '#c4813f'
@@ -495,6 +505,7 @@ plotting:
     # biomass
     biogas: '#e3d37d'
     biomass: '#baa741'
+    Biomass: '#baa741'
     solid biomass: '#baa741'
     municipal solid waste: '#91ba41'
     solid biomass import: '#d5ca8d'
@@ -526,11 +537,15 @@ plotting:
     Electric load: '#110d63'
     electric demand: '#110d63'
     electricity: '#110d63'
+    El. grid: '#110d63'
     industry electricity: '#2d2a66'
     industry new electricity: '#2d2a66'
     agriculture electricity: '#494778'
     # battery + EVs
     battery: '#ace37f'
+    Battery: '#ace37f'
+    Battery: '#ace37f'
+    Battery ch/dis: '#ace37f'
     battery storage: '#ace37f'
     battery charger: '#88a75b'
     battery discharger: '#5d4e29'
@@ -597,6 +612,7 @@ plotting:
     Heat load: '#cc1f1f'
     heat: '#cc1f1f'
     heat vent: '#aa3344'
+    Heat vent: '#aa3344'
     heat demand: '#cc1f1f'
     rural heat: '#ff5c5c'
     rural heat dsm: '#ff5c5c'
@@ -616,6 +632,7 @@ plotting:
     # heat supply
     heat pumps: '#2fb537'
     heat pump: '#2fb537'
+    Heat pump: '#2fb537'
     air heat pump: '#36eb41'
     residential urban decentral air heat pump: '#48f74f'
     services urban decentral air heat pump: '#5af95d'
@@ -643,6 +660,7 @@ plotting:
     CHP electric: '#8a5751'
     district heating: '#e8beac'
     resistive heater: '#d8f9b8'
+    Resistive heater: '#d8f9b8'
     residential rural resistive heater: '#bef5b5'
     residential urban decentral resistive heater: '#b2f1a9'
     services rural resistive heater: '#a5ed9d'
@@ -665,22 +683,26 @@ plotting:
     land transport fuel cell: '#6b3161'
     H2 pipeline: '#f081dc'
     H2 pipeline retrofitted: '#ba99b5'
-    H2 Fuel Cell: '#c251ae'
-    H2 fuel cell: '#c251ae'
+    H2 Fuel Cell: '#6b3161'
+    H2 fuel cell: '#6b3161'
+    Fuel cell: '#6b3161'
     H2 turbine: '#991f83'
     H2 Electrolysis: '#ff29d9'
     H2 electrolysis: '#ff29d9'
     # ammonia
     NH3: '#46caf0'
     ammonia: '#46caf0'
+    Ammonia: '#46caf0'
     ammonia store: '#00ace0'
     ammonia cracker: '#87d0e6'
     Haber-Bosch: '#076987'
     # syngas
     Sabatier: '#9850ad'
     methanation: '#c44ce6'
+    Methanation: '#c44ce6'
     methane: '#c44ce6'
     # synfuels
+    Industry chains: '#FF7B00'
     Fischer-Tropsch: '#25c49a'
     liquid: '#25c49a'
     kerosene for aviation: '#a1ffe6'
@@ -690,6 +712,7 @@ plotting:
     Methanol steam reforming: '#FFBF00'
     Methanol steam reforming CC: '#A2EA8A'
     methanolisation: '#00FFBF'
+    Methanolisation: '#00FFBF'
     biomass-to-methanol: '#EAD28A'
     biomass-to-methanol CC: '#EADBAD'
     allam methanol: '#B98F76'
@@ -698,6 +721,7 @@ plotting:
     OCGT methanol: '#B98F76'
     methanol: '#FF7B00'
     methanol transport: '#FF7B00'
+    Methanol storage: '#FF7B00'
     shipping methanol: '#468c8b'
     industry methanol: '#468c8b'
     # co2
@@ -713,9 +737,13 @@ plotting:
     # emissions
     process emissions CC: '#000000'
     process emissions: '#222222'
+    Process emissions: '#222222'
+    
     process emissions to stored: '#444444'
     process emissions to atmosphere: '#888888'
     oil emissions: '#aaaaaa'
+    Oil & Liquid Fuels: '#654321'
+    Oil storage: '#654321'
     shipping oil emissions: "#555555"
     shipping methanol emissions: '#666666'
     land transport oil emissions: '#777777'
@@ -733,9 +761,10 @@ plotting:
     geothermal heat: '#ba91b1'
     geothermal district heat: '#d19D00'
     geothermal organic rankine cycle: '#ffbf00'
-    AC: "#70af1d"
-    AC-AC: "#70af1d"
-    AC line: "#70af1d"
+    AC: "#2d2a66"
+    Grid: "#2d2a66"
+    AC-AC: "#2d2a66"
+    AC line: "#2d2a66"
     links: "#8a1caf"
     HVDC links: "#8a1caf"
     DC: "#8a1caf"
@@ -751,3 +780,4 @@ plotting:
     import NH3: '#e2ed74'
     import oil: '#93eda2'
     import methanol: '#87d0e6'
+    Industry demand: '#2d2a66'

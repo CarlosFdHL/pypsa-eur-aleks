@@ -271,6 +271,39 @@ rule validate_mga_solutions:
             if network_hash  # Skip if network_hash lookup failed
         ] if config.get("near-opt", {}).get("validation", {}).get("enable", False) else [],
 
+rule validation_mga_all:
+    input:
+        lambda w: [
+            f"results/{config['run']['prefix']}/{design_year}/validation/"
+            f"mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}_load_shedding.csv"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
+            for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
+            for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
+            for network_hash in [get_network_hash_for_near_opt(
+                near_opt_file,
+                config.get("near-opt", {}).get("cache_dir", "mga-cache"),
+                design_year=design_year,
+                scenario=scenario,
+            ) or ""]
+            for dir_hash in get_mga_directions(near_opt_file)
+            if network_hash
+        ] + [
+            f"results/{config['run']['prefix']}/{design_year}/validation/"
+            f"mga_{network_hash}_{dir_hash}_{operational_year}_{scenario}_heat_shedding.csv"
+            for design_year in design_years(config["run"]["stress_tests"]["design_years"])
+            for operational_year in test_years(config["run"]["stress_tests"]["stress_years"])
+            for scenario in expand("base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}", **config["scenario"])
+            for near_opt_file in [f"results/{config['run']['prefix']}/{design_year}/near_opt/{scenario}.csv"]
+            for network_hash in [get_network_hash_for_near_opt(
+                near_opt_file,
+                config.get("near-opt", {}).get("cache_dir", "mga-cache"),
+                design_year=design_year,
+                scenario=scenario,
+            ) or ""]
+            for dir_hash in get_mga_directions(near_opt_file)
+            if network_hash
+        ]
 
 def balance_map_paths(kind, w):
     """

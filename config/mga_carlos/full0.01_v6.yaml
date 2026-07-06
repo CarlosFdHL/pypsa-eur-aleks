@@ -16,7 +16,7 @@ remote:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "full0.01_v5"
+  prefix: "full0.01_v6"
   name: "all"
   scenarios:
     enable: true
@@ -85,12 +85,12 @@ near-opt:
       - {carrier: H2 Store, component: Store, attribute: e_nom, weight: capital_cost}    
       - {carrier: H2 Fuel Cell, component: Link, attribute: p_nom, weight: capital_cost}
       - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
+    h2_turbine:
+      - {carrier: H2 turbine, component: Link, attribute: p_nom, weight: capital_cost}
     e_fuels:
       - {carrier: Fischer-Tropsch, component: Link, attribute: p_nom, weight: capital_cost}       # oil. no biomass to liquid
-      - {carrier: oil, component: Store, attribute: e_nom, weight: capital_cost}                  # oil store
 
       - {carrier: Sabatier, component: Link, attribute: p_nom, weight: capital_cost}              # methane (gas)
-      - {carrier: gas, component: Store, attribute: e_nom, weight: capital_cost}                  # gas store
 
       - {carrier: methanolisation, component: Link, attribute: p_nom, weight: capital_cost}       # methanol
       - {carrier: methanol, component: Store, attribute: e_nom, weight: capital_cost}             # methanol store
