@@ -1,0 +1,329 @@
+weather_year_1941_1H:
+  snapshots:
+    start: 1941-07-01 00:00
+    end: 1942-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-1941-1946-era5
+    cutouts:
+      europe-1941-1946-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '1941'
+          - '1942'
+  renewable:
+    onwind:
+      cutout: europe-1941-1946-era5
+    offwind-ac:
+      cutout: europe-1941-1946-era5
+    offwind-dc:
+      cutout: europe-1941-1946-era5
+    offwind-float:
+      cutout: europe-1941-1946-era5
+    solar:
+      cutout: europe-1941-1946-era5
+    solar-hsat:
+      cutout: europe-1941-1946-era5
+    hydro:
+      cutout: europe-1941-1946-era5
+  solar_thermal:
+    cutout: europe-1941-1946-era5
+  sector:
+    heat_demand_cutout: europe-1941-1946-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-1941-1946-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H
+weather_year_1962_1H:
+  snapshots:
+    start: 1962-07-01 00:00
+    end: 1963-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-1961-1966-era5
+    cutouts:
+      europe-1961-1966-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '1962'
+          - '1963'
+  renewable:
+    onwind:
+      cutout: europe-1961-1966-era5
+    offwind-ac:
+      cutout: europe-1961-1966-era5
+    offwind-dc:
+      cutout: europe-1961-1966-era5
+    offwind-float:
+      cutout: europe-1961-1966-era5
+    solar:
+      cutout: europe-1961-1966-era5
+    solar-hsat:
+      cutout: europe-1961-1966-era5
+    hydro:
+      cutout: europe-1961-1966-era5
+  solar_thermal:
+    cutout: europe-1961-1966-era5
+  sector:
+    heat_demand_cutout: europe-1961-1966-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-1961-1966-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H
+weather_year_1965_1H:
+  snapshots:
+    start: 1965-07-01 00:00
+    end: 1966-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-1961-1966-era5
+    cutouts:
+      europe-1961-1966-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '1965'
+          - '1966'
+  renewable:
+    onwind:
+      cutout: europe-1961-1966-era5
+    offwind-ac:
+      cutout: europe-1961-1966-era5
+    offwind-dc:
+      cutout: europe-1961-1966-era5
+    offwind-float:
+      cutout: europe-1961-1966-era5
+    solar:
+      cutout: europe-1961-1966-era5
+    solar-hsat:
+      cutout: europe-1961-1966-era5
+    hydro:
+      cutout: europe-1961-1966-era5
+  solar_thermal:
+    cutout: europe-1961-1966-era5
+  sector:
+    heat_demand_cutout: europe-1961-1966-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-1961-1966-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H
+weather_year_1986_1H:
+  snapshots:
+    start: 1986-07-01 00:00
+    end: 1987-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-1986-1991-era5
+    cutouts:
+      europe-1986-1991-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '1986'
+          - '1987'
+  renewable:
+    onwind:
+      cutout: europe-1986-1991-era5
+    offwind-ac:
+      cutout: europe-1986-1991-era5
+    offwind-dc:
+      cutout: europe-1986-1991-era5
+    offwind-float:
+      cutout: europe-1986-1991-era5
+    solar:
+      cutout: europe-1986-1991-era5
+    solar-hsat:
+      cutout: europe-1986-1991-era5
+    hydro:
+      cutout: europe-1986-1991-era5
+  solar_thermal:
+    cutout: europe-1986-1991-era5
+  sector:
+    heat_demand_cutout: europe-1986-1991-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-1986-1991-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H
+weather_year_1996_1H:
+  snapshots:
+    start: 1996-07-01 00:00
+    end: 1997-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-1996-2001-era5
+    cutouts:
+      europe-1996-2001-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '1996'
+          - '1997'
+  renewable:
+    onwind:
+      cutout: europe-1996-2001-era5
+    offwind-ac:
+      cutout: europe-1996-2001-era5
+    offwind-dc:
+      cutout: europe-1996-2001-era5
+    offwind-float:
+      cutout: europe-1996-2001-era5
+    solar:
+      cutout: europe-1996-2001-era5
+    solar-hsat:
+      cutout: europe-1996-2001-era5
+    hydro:
+      cutout: europe-1996-2001-era5
+  solar_thermal:
+    cutout: europe-1996-2001-era5
+  sector:
+    heat_demand_cutout: europe-1996-2001-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-1996-2001-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H
+weather_year_2010_1H:
+  snapshots:
+    start: 2010-07-01 00:00
+    end: 2011-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-2006-2011-era5
+    cutouts:
+      europe-2006-2011-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '2010'
+          - '2011'
+  renewable:
+    onwind:
+      cutout: europe-2006-2011-era5
+    offwind-ac:
+      cutout: europe-2006-2011-era5
+    offwind-dc:
+      cutout: europe-2006-2011-era5
+    offwind-float:
+      cutout: europe-2006-2011-era5
+    solar:
+      cutout: europe-2006-2011-era5
+    solar-hsat:
+      cutout: europe-2006-2011-era5
+    hydro:
+      cutout: europe-2006-2011-era5
+  solar_thermal:
+    cutout: europe-2006-2011-era5
+  sector:
+    heat_demand_cutout: europe-2006-2011-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-2006-2011-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H
+weather_year_2013_1H:
+  snapshots:
+    start: 2013-07-01 00:00
+    end: 2014-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-2011-2016-era5
+    cutouts:
+      europe-2011-2016-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '2013'
+          - '2014'
+  renewable:
+    onwind:
+      cutout: europe-2011-2016-era5
+    offwind-ac:
+      cutout: europe-2011-2016-era5
+    offwind-dc:
+      cutout: europe-2011-2016-era5
+    offwind-float:
+      cutout: europe-2011-2016-era5
+    solar:
+      cutout: europe-2011-2016-era5
+    solar-hsat:
+      cutout: europe-2011-2016-era5
+    hydro:
+      cutout: europe-2011-2016-era5
+  solar_thermal:
+    cutout: europe-2011-2016-era5
+  sector:
+    heat_demand_cutout: europe-2011-2016-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-2011-2016-era5
+  clustering:
+    temporal:
+      resolution_sector: 1H

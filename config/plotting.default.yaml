@@ -524,7 +524,8 @@ plotting:
     biomass to liquid: '#32CD32'
     unsustainable solid biomass: '#998622'
     unsustainable bioliquids: '#32CD32'
-    electrobiofuels: 'red'
+    electrobiofuels: '#e05b09'
+    Electrobiofuels: '#e05b09'
     BioSNG: '#123456'
     BioSNG CC: '#45233b'
     solid biomass to hydrogen: '#654321'
@@ -687,6 +688,7 @@ plotting:
     H2 fuel cell: '#6b3161'
     Fuel cell: '#6b3161'
     H2 turbine: '#991f83'
+    H2 Turbine: '#991f83'
     H2 Electrolysis: '#ff29d9'
     H2 electrolysis: '#ff29d9'
     # ammonia

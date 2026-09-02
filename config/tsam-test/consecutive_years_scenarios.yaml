@@ -1,0 +1,117 @@
+weather_year_2013_3H:
+  snapshots:
+    start: 2013-07-01 00:00
+    end: 2014-06-30 23:00
+    inclusive: both
+  atlite:
+    default_cutout: europe-2011-2016-era5
+    cutouts:
+      europe-2011-2016-era5:
+        prepare_kwargs:
+          module: era5
+          x:
+          - -12.0
+          - 35.0
+          y:
+          - 33.0
+          - 72
+          dx: 0.25
+          dy: 0.25
+          time:
+          - '2013'
+          - '2014'
+  renewable:
+    onwind:
+      cutout: europe-2011-2016-era5
+    offwind-ac:
+      cutout: europe-2011-2016-era5
+    offwind-dc:
+      cutout: europe-2011-2016-era5
+    offwind-float:
+      cutout: europe-2011-2016-era5
+    solar:
+      cutout: europe-2011-2016-era5
+    solar-hsat:
+      cutout: europe-2011-2016-era5
+    hydro:
+      cutout: europe-2011-2016-era5
+  solar_thermal:
+    cutout: europe-2011-2016-era5
+  sector:
+    heat_demand_cutout: europe-2011-2016-era5
+  lines:
+    dynamic_line_rating:
+      cutout: europe-2011-2016-era5
+  clustering:
+    temporal:
+      resolution_sector: 9H
+
+weather_years_1941_1986_2010_9h:
+  snapshots:
+    start: ["1941-07-01", "1986-07-01", "2010-07-01"]
+    end:   ["1942-07-01", "1987-07-01", "2011-07-01"]
+    inclusive: left
+  atlite:
+    default_cutout:
+    - europe-1941-1942-era5
+    - europe-1986-1987-era5
+    - europe-2010-2011-era5
+    cutouts:
+      europe-1941-1942-era5:
+        module: era5
+        x: [-12.0, 35.0]
+        'y': [33.0, 72.0]
+        dx: 0.25
+        dy: 0.25
+        time: ['1941', '1942']
+        prepare_kwargs:
+          features: [temperature, height, runoff]
+          sarah_dir:
+          monthly_requests: true
+          tmpdir: ./cutouts_tmp/
+      europe-1986-1987-era5:
+        module: era5
+        x: [-12.0, 35.0]
+        'y': [33.0, 72.0]
+        dx: 0.25
+        dy: 0.25
+        time: ['1986', '1987']
+        prepare_kwargs:
+          features: [temperature, height, runoff]
+          sarah_dir:
+          monthly_requests: true
+          tmpdir: ./cutouts_tmp/
+      europe-2010-2011-era5:
+        module: era5
+        x: [-12.0, 35.0]
+        'y': [33.0, 72.0]
+        dx: 0.25
+        dy: 0.25
+        time: ['2010', '2011']
+        prepare_kwargs:
+          features: [temperature, height, runoff]
+          sarah_dir:
+          monthly_requests: true
+          tmpdir: ./cutouts_tmp/
+  renewable:
+    onwind: {cutout: default}
+    offwind-ac: {cutout: default}
+    offwind-dc: {cutout: default}
+    offwind-float: {cutout: default}
+    solar: {cutout: default}
+    solar-hsat: {cutout: default}
+    hydro:
+      cutout: default
+      eia_approximate_missing: true
+      eia_correct_by_capacity: true
+  solar_thermal:
+    cutout: default
+  sector:
+    heat_demand_cutout: default
+  lines:
+    dynamic_line_rating:
+      cutout: default
+  clustering:
+    temporal:
+      resolution_sector: 9h
+

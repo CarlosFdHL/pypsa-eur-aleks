@@ -1,10 +1,24 @@
 #!/bin/bash
+# LOG_DIR="${SLURM_LOG_DIR:-slurm_logs}"
+# mkdir -p "$LOG_DIR"
+
+# snakemake --rerun-incomplete --latency-wait 100 \
+#     --executor cluster-generic \
+#     --cluster-generic-submit-cmd "sbatch --parsable -p workq -n 1 --exclusive \
+#         --output=${LOG_DIR}/slurm-%j.out \
+#         --time=12:00:00 --cpus-per-task=32" \
+#     "$@"
+
+#!/bin/bash
 LOG_DIR="${SLURM_LOG_DIR:-slurm_logs}"
 mkdir -p "$LOG_DIR"
 
 snakemake --rerun-incomplete --latency-wait 100 \
     --executor cluster-generic \
     --cluster-generic-submit-cmd "sbatch --parsable -p workq -n 1 --exclusive \
+        --exclude=sn040,sn047,sn179,sn202,sn251 \
         --output=${LOG_DIR}/slurm-%j.out \
         --time=12:00:00 --cpus-per-task=32" \
+    --cluster-generic-cancel-cmd "scancel" \
+    --restart-times 3 \
     "$@"
