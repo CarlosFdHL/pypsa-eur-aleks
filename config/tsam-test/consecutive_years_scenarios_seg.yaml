@@ -113,5 +113,5 @@ weather_years_1941_1986_2010_9h:
       cutout: default
   clustering:
     temporal:
-      resolution_sector: 9h
+      resolution_sector: 973seg #2920 
 
