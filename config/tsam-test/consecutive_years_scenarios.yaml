@@ -44,7 +44,7 @@ weather_year_2013_3H:
       cutout: europe-2011-2016-era5
   clustering:
     temporal:
-      resolution_sector: 9H
+      resolution_sector: 32H
 
 weather_years_1941_1986_2010_9h:
   snapshots:

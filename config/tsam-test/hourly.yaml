@@ -1174,9 +1174,9 @@ solving:
       PreDual: 0
       GURO_PAR_BARDENSETHRESH: 200
     gurobi-less-memory:
-      threads: 8
+      threads: 32
       method: 2 # barrier
-      BarOrder: 0
+      BarOrder: 1
       crossover: 0
       BarConvTol: 1.e-5
       Seed: 123

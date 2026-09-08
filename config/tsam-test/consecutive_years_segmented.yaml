@@ -20,7 +20,7 @@ remote:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "consecutive_years_seg"
+  prefix: "consecutive_years_seg2"
   name: "weather_years_1941_1986_2010_9h"
   scenarios:
     enable: true
@@ -43,6 +43,9 @@ run:
 near-opt:
   enable: false
 
+segmentation:
+  prices: true
+  
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#foresight
 foresight: overnight
 
@@ -1080,7 +1083,7 @@ solving:
     skip_iterations: true
     rolling_horizon: false
     seed: 123
-    custom_extra_functionality: 
+    custom_extra_functionality: "../scripts/cyclic_per_weather_year.py" # Adds cyclic constraint to long term storage inside the sepparate years
     # io_api:
     track_iterations: false
     min_iterations: 2

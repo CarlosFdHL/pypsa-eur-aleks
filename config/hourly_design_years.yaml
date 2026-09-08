@@ -92,6 +92,9 @@ weather_year_1962_1H:
   clustering:
     temporal:
       resolution_sector: 1H
+
+
+
 weather_year_1965_1H:
   snapshots:
     start: 1965-07-01 00:00
@@ -186,6 +189,9 @@ weather_year_1986_1H:
   clustering:
     temporal:
       resolution_sector: 1H
+
+
+
 weather_year_1996_1H:
   snapshots:
     start: 1996-07-01 00:00
@@ -280,6 +286,9 @@ weather_year_2010_1H:
   clustering:
     temporal:
       resolution_sector: 1H
+
+
+
 weather_year_2013_1H:
   snapshots:
     start: 2013-07-01 00:00

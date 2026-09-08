@@ -13,7 +13,7 @@
 LOG_DIR="${SLURM_LOG_DIR:-slurm_logs}"
 mkdir -p "$LOG_DIR"
 
-snakemake --rerun-incomplete --latency-wait 100 \
+snakemake prepare_sector_networks --rerun-incomplete --latency-wait 100 \
     --executor cluster-generic \
     --cluster-generic-submit-cmd "sbatch --parsable -p workq -n 1 --exclusive \
         --exclude=sn040,sn047,sn179,sn202,sn251 \
