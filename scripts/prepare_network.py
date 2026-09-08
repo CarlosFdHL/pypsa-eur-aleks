@@ -29,6 +29,7 @@ import logging
 import numpy as np
 import pandas as pd
 import pypsa
+from pathlib import Path
 
 from scripts._helpers import (
     PYPSA_V1,
@@ -217,8 +218,74 @@ def average_every_nhours(n, offset, drop_leap_day=False):
     return m
 
 
-def apply_time_segmentation(n, segments, solver_name="cbc"):
-    logger.info(f"Aggregating time series to {segments} segments.")
+def _modelled_years(sns):
+    """Return (year, block) per contiguous weather year; years span July to June."""
+    d = sns.to_series().diff()
+    step = d.median()
+    starts = np.flatnonzero(np.r_[True, d.values[1:] > 1.5 * step])
+    ends = np.r_[starts[1:], len(sns)]
+    blocks = [(int(sns[s].year), sns[s:e]) for s, e in zip(starts, ends)]
+    years = [y for y, _ in blocks]
+    if len(set(years)) != len(years):
+        raise ValueError(f"Repeated starting years across snapshot blocks: {years}")
+    return blocks
+
+
+def _price_signal(
+    n, 
+    price_dir,
+    ) -> pd.DataFrame:
+    """Load one price file per modelled year and align it with the network snapshots."""
+    price_dir = Path(price_dir)
+    blocks = _modelled_years(n.snapshots)
+    logger.info(
+        f"Segmenting on prices for {len(blocks)} weather year(s): "
+        + ", ".join(f"{y} ({len(b)} snapshots)" for y, b in blocks)
+    )
+
+    parts = []
+    for year, block in blocks:
+        path = price_dir / f"{year}.csv"
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Price-based segmentation requested but {path} is missing."
+            )
+
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        if df.shape[1] != 1:
+            raise ValueError(
+                f"{path} must hold a single price column, found {list(df.columns)}"
+            )
+        s = df.iloc[:, 0].astype(float).sort_index()
+        if s.index.has_duplicates:
+            raise ValueError(f"{path} has duplicate timestamps.")
+        if s.isna().any():
+            raise ValueError(f"{path} contains NaNs.")
+        if s.index[-1] < block[-1]:
+            raise ValueError(f"{path} ends at {s.index[-1]}, block runs to {block[-1]}.")
+
+        aligned = s.reindex(block, method="ffill") # If time resolution is greater than 1H fills the missing values with the last available value
+        if aligned.isna().any():
+            raise ValueError(
+                f"{path} does not cover snapshot {block[aligned.isna()][0]} "
+                f"(file spans {s.index[0]} to {s.index[-1]})."
+            )
+        logger.info(
+            f"  {path.name}: {s.index.to_series().diff().median()} resolution, "
+            f"mean {aligned.mean():.1f}, range [{aligned.min():.1f}, {aligned.max():.1f}]"
+        )
+        parts.append(aligned)
+
+    prices = pd.concat(parts)
+    lo, hi = prices.min(), prices.max()
+    if hi - lo < 1e-6:
+        raise ValueError("Price signal is flat; the source networks were not solved.")
+    return ((prices - lo) / (hi - lo)).to_frame("price") # Normalize using minmax
+
+
+def apply_time_segmentation(n, segments, solver_name="cbc", price_dir=None):
+    basis = "prices" if price_dir else "profiles"
+    logger.info(f"Aggregating time series to {segments} segments based on {basis}.")
     try:
         import tsam.timeseriesaggregation as tsam
     except ImportError:
@@ -229,7 +296,6 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     p_max_pu_norm = n.generators_t.p_max_pu.max()
     p_max_pu = n.generators_t.p_max_pu / p_max_pu_norm
 
-
     # Replace p_max_pu that are NaN with 0's (assume no possible generation, this hapepns for BA0 and SI0 offwind-float,)
     p_max_pu = p_max_pu.fillna(0)
 
@@ -239,10 +305,8 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     inflow_norm = n.storage_units_t.inflow.max()
     inflow = n.storage_units_t.inflow / inflow_norm
 
-    raw = pd.concat([p_max_pu, load, inflow], axis=1, sort=False)
-
-
-    
+    profiles = pd.concat([p_max_pu, load, inflow], axis=1, sort=False)
+    raw = _price_signal(n, price_dir) if price_dir else profiles
 
     agg = tsam.TimeSeriesAggregation(
         raw,
@@ -255,28 +319,32 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
 
     segmented = agg.createTypicalPeriods()
 
-    weightings = segmented.index.get_level_values("Segment Duration")
-    offsets = np.insert(np.cumsum(weightings[:-1]), 0, 0)
-    snapshots = [n.snapshots[0] + pd.Timedelta(f"{offset}h") for offset in offsets]
+    # tsam counts rows, not hours; convert to snapshots and real durations
+    steps = segmented.index.get_level_values("Segment Duration").astype(int).values
+    starts = np.insert(np.cumsum(steps[:-1]), 0, 0)
+    seg_id = np.repeat(np.arange(len(steps)), steps)
+    assert len(seg_id) == len(n.snapshots)
 
-    # Check if there are any leap days in the snapshots. If so, find the index and add 24 hours for all the remaining snapshots.
-    leap_segments = [i for i, x in enumerate(snapshots) if (x.month == 2 and x.day == 29)]
-    if leap_segments:
-        for i in leap_segments:
-            snapshots[i:] = [x + pd.Timedelta("24h") for x in snapshots[i:]]
-        logger.info(
-            f"Leap day found in segments, adding 24 hours to all following segments: {leap_segments}"
-        )
+    snapshots = pd.DatetimeIndex(n.snapshots[starts], name="snapshot")
+    w = n.snapshot_weightings.objective.values
+    hours = pd.Series(w, index=seg_id).groupby(level=0).sum()
 
-    n.set_snapshots(pd.DatetimeIndex(snapshots, name="name"))
+    def segment_mean(df):
+        num = pd.DataFrame(df.values * w[:, None], index=seg_id, columns=df.columns)
+        out = num.groupby(level=0).sum().div(hours, axis=0)
+        out.index = snapshots
+        return out
+
+    profiles = segment_mean(profiles)
+
+    n.set_snapshots(snapshots)
     n.snapshot_weightings = pd.Series(
-        weightings, index=snapshots, name="weightings", dtype="float64"
+        hours.values, index=snapshots, name="weightings", dtype="float64"
     )
 
-    segmented.index = snapshots
-    n.generators_t.p_max_pu = segmented[n.generators_t.p_max_pu.columns] * p_max_pu_norm
-    n.loads_t.p_set = segmented[n.loads_t.p_set.columns] * load_norm
-    n.storage_units_t.inflow = segmented[n.storage_units_t.inflow.columns] * inflow_norm
+    n.generators_t.p_max_pu = profiles[n.generators_t.p_max_pu.columns] * p_max_pu_norm
+    n.loads_t.p_set = profiles[n.loads_t.p_set.columns] * load_norm
+    n.storage_units_t.inflow = profiles[n.storage_units_t.inflow.columns] * inflow_norm
 
     return n
 
