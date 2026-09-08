@@ -32,34 +32,35 @@ def cyclic_per_weather_year(n, snapshots, snakemake):
         return
     
     carriers = ["H2", "water pits", "gas"]
-    mask = n.stores.e_cyclic & n.stores.carrier.str.contains("|".join(carriers))
+    mask = n.stores.e_cyclic #& n.stores.carrier.str.contains("|".join(carriers))
     stores = n.stores.index[mask]
 
-    su_mask = n.storage_units.cyclic_state_of_charge & (n.storage_units.carrier == "hydro")
+    su_mask = n.storage_units.cyclic_state_of_charge #& (n.storage_units.carrier == "hydro")
     sus = n.storage_units.index[su_mask]
 
     if stores.empty and sus.empty:
         logger.info("No seasonal storage found; nothing to constrain.")
         return
 
-    ref = last_sns[-1]
     n_constraints = 0
+
+    first_sns = [grp.index[0] for _, grp in block.groupby(block)]
 
     if not stores.empty:
         for names in stores:
             v = n.model["Store-e"]
             dim = next(x for x in v.dims if x != "snapshot")
-            for t in last_sns[:-1]:
-                lhs = v.sel({"snapshot": t, dim: names}) - v.sel({"snapshot": ref, dim: names})
-                n.model.add_constraints(lhs == 0, name=f"cyclic-store-block-{names}-{t:%Y%m%d}")
+            for t0, t1 in zip(first_sns, last_sns):
+                lhs = v.sel({"snapshot": t0, dim: names}) - v.sel({"snapshot": t1, dim: names})
+                n.model.add_constraints(lhs == 0, name=f"cyclic-store-block-{names}-{t1:%Y%m%d}")
                 n_constraints += 1
     if not sus.empty:
         for names in sus:
             v = n.model["StorageUnit-state_of_charge"]
             dim = next(x for x in v.dims if x != "snapshot")
-            for t in last_sns[:-1]:
-                lhs = v.sel({"snapshot": t, dim: names}) - v.sel({"snapshot": ref, dim: names})
-                n.model.add_constraints(lhs == 0, name=f"cyclic-storage_unit-block-{names}-{t:%Y%m%d}")
+            for t0, t1 in zip(first_sns, last_sns):
+                lhs = v.sel({"snapshot": t0, dim: names}) - v.sel({"snapshot": t1, dim: names})
+                n.model.add_constraints(lhs == 0, name=f"cyclic-storage_unit-block-{names}-{t1:%Y%m%d}")
                 n_constraints += 1
 
     logger.info(
