@@ -1,12 +1,14 @@
-# SPDX-FileCopyrightText: : 2017-2024 The PyPSA-Eur Authors
+# yaml-language-server: $schema=./schema.default.json
+# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: CC0-1.0
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#plotting
 plotting:
+  enable_heat_source_maps: false
   map:
     boundaries: [-11, 30, 34, 71]
-    color_geomap:
+    geomap_colors:
       ocean: white
       land: white
   projection:
@@ -53,6 +55,8 @@ plotting:
       - residential rural heat
       - services urban decentral heat
       - services rural heat
+  interactive_bus_balance:
+    bus_name_pattern: None
   heatmap_timeseries:
     marginal_price:
     - AC
@@ -100,19 +104,20 @@ plotting:
   balance_map:
     bus_carriers:
     - AC
-    - H2
+    - co2_stored
     - gas
-    - oil
+    - H2
     - methanol
-    - co2 stored
-    - urban central heat
+    - oil
+    - urban_central_heat
     AC:
-      unit: TWh
-      unit_conversion: 1_000_000
       cmap: Greens
       vmin:
       vmax:
       region_unit: €/MWh
+      branch_color: darkseagreen
+      unit: TWh
+      unit_conversion: 1_000_000
       bus_factor: 0.002
       branch_factor: 0.01
       flow_factor: 100
@@ -122,13 +127,46 @@ plotting:
       branch_sizes:
       - 100
       - 20
-    gas:
-      unit: TWh
-      unit_conversion: 1_000_000
-      cmap: Purples
+    biogas:
+      cmap: Greens
       vmin:
       vmax:
       region_unit: €/MWh
+      branch_color: darkseagreen
+      unit: TWh
+      unit_conversion: 1_000_000
+      bus_factor: 0.1
+      branch_factor: 0.1
+      flow_factor: 100
+      bus_sizes:
+      - 100
+      - 50
+      branch_sizes:
+    co2_stored:
+      cmap: Purples
+      vmin:
+      vmax:
+      region_unit: €/t_${CO_2}$
+      branch_color: orange
+      unit: Mt
+      unit_conversion: 1_000_000
+      bus_factor: 0.015
+      branch_factor: 0.4
+      flow_factor: 120
+      bus_sizes:
+      - 50
+      - 10
+      branch_sizes:
+      - 5
+      - 2
+    gas:
+      cmap: Oranges
+      vmin:
+      vmax:
+      region_unit: €/MWh
+      branch_color: darkred
+      unit: TWh
+      unit_conversion: 1_000_000
       bus_factor: 0.002
       branch_factor: 0.05
       flow_factor: 60
@@ -139,58 +177,30 @@ plotting:
       - 100
       - 50
     H2:
-      unit: TWh
-      unit_conversion: 1_000_000
       cmap: Blues
       vmin:
       vmax:
       region_unit: €/MWh
+      branch_color: pink
+      unit: TWh
+      unit_conversion: 1_000_000
       bus_factor: 0.002
-      branch_factor: 0.07
-      flow_factor: 50
+      branch_factor: 0.03
+      flow_factor: 8
       bus_sizes:
       - 50
       - 25
       branch_sizes:
       - 40
       - 20
-    co2 stored:
-      unit: Mt
-      unit_conversion: 1_000_000
-      cmap: Purples
-      vmin:
-      vmax:
-      region_unit: €/t_${CO_2}$
-      bus_factor: 0.03
-      branch_factor: 1
-      flow_factor: 2_000
-      bus_sizes:
-      - 50
-      - 10
-      branch_sizes:
-      - 5
-      - 2
-    urban central heat:
-      unit: TWh
-      unit_conversion: 1_000_000
-      cmap: Oranges
-      vmin:
-      vmax:
-      region_unit: €/MWh
-      bus_factor: 0.005
-      branch_factor: 0.1
-      flow_factor: 100
-      bus_sizes:
-      - 300
-      - 100
-      branch_sizes:
     methanol:
-      unit: TWh
-      unit_conversion: 1_000_000
       cmap: Greens
       vmin:
       vmax:
       region_unit: €/MWh
+      branch_color: yellow
+      unit: TWh
+      unit_conversion: 1_000_000
       bus_factor: 0.005
       branch_factor: 0.1
       flow_factor: 100
@@ -198,41 +208,14 @@ plotting:
       - 20
       - 10
       branch_sizes:
-    biogas:
-      unit: TWh
-      unit_conversion: 1_000_000
-      cmap: Greens
-      vmin:
-      vmax:
-      region_unit: €/MWh
-      bus_factor: 0.1
-      branch_factor: 0.1
-      flow_factor: 100
-      bus_sizes:
-      - 100
-      - 50
-      branch_sizes:
-    solid biomass:
-      unit: TWh
-      unit_conversion: 1_000_000
-      cmap: Greens
-      vmin:
-      vmax:
-      region_unit: €/MWh
-      bus_factor: 0.01
-      branch_factor: 0.1
-      flow_factor: 100
-      bus_sizes:
-      - 100
-      - 50
-      branch_sizes:
     oil:
-      unit: TWh
-      unit_conversion: 1_000_000
       cmap: Greys
+      region_unit: €/MWh
       vmin:
       vmax:
-      region_unit: €/MWh
+      branch_color: black
+      unit: TWh
+      unit_conversion: 1_000_000
       bus_factor: 0.002
       branch_factor: 0.01
       flow_factor: 100
@@ -240,6 +223,149 @@ plotting:
       - 200
       - 100
       branch_sizes:
+    solid_biomass:
+      cmap: Greens
+      vmin:
+      vmax:
+      region_unit: €/MWh
+      branch_color: darkseagreen
+      unit: TWh
+      unit_conversion: 1_000_000
+      bus_factor: 0.01
+      branch_factor: 0.1
+      flow_factor: 100
+      bus_sizes:
+      - 100
+      - 50
+      branch_sizes:
+    urban_central_heat:
+      cmap: Oranges
+      vmin:
+      vmax:
+      region_unit: €/MWh
+      branch_color: darkred
+      unit: TWh
+      unit_conversion: 1_000_000
+      bus_factor: 0.005
+      branch_factor: 0.1
+      flow_factor: 100
+      bus_sizes:
+      - 300
+      - 100
+      branch_sizes:
+  balance_map_interactive:
+    bus_carriers:
+    - AC
+    - co2_stored
+    - gas
+    - H2
+    - methanol
+    - oil
+    - urban_central_heat
+    AC:
+      cmap: Greens
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: darkseagreen
+      branch_width_max: 20
+      bus_size_max: 15000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    co2_stored:
+      cmap: Purples
+      region_unit: €/t CO2
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: orange
+      branch_width_max: 20
+      bus_size_max: 15000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    gas:
+      cmap: Oranges
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: darkred
+      branch_width_max: 20
+      bus_size_max: 15000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    H2:
+      cmap: Blues
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: pink
+      branch_width_max: 45
+      bus_size_max: 20000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    methanol:
+      cmap: Greens
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: yellow
+      branch_width_max: 45
+      bus_size_max: 20000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    oil:
+      cmap: Greys
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: black
+      branch_width_max: 45
+      bus_size_max: 20000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    solid_biomass:
+      cmap: Greens
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: darkseagreen
+      branch_width_max: 45
+      bus_size_max: 20000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
+    urban_central_heat:
+      cmap: Oranges
+      region_unit: €/MWh
+      vmin:
+      vmax:
+      region_alpha: 0.8
+      unit_conversion: 1_000_000
+      branch_color: darkred
+      branch_width_max: 45
+      bus_size_max: 20000
+      arrow_size_factor: 2
+      map_style: road
+      tooltip: true
 
   nice_names:
     OCGT: "Open-Cycle Gas"
@@ -253,6 +379,12 @@ plotting:
     hydro: "Reservoir & Dam"
     battery: "Battery Storage"
     H2: "Hydrogen Storage"
+    li-ion: "Lithium-Ion Storage"
+    lfp: "Lithium-Ion-LFP Storage"
+    vanadium: "Vanadium-Redox-Flow Storage"
+    lair: "Liquid-Air Storage"
+    pair: "Compressed-Air-Adiabatic Storage"
+    iron-air: "Iron-Air Storage"
     lines: "Transmission Lines"
     ror: "Run of River"
     load: "Load Shedding"
@@ -260,11 +392,26 @@ plotting:
     dc: "DC"
 
   tech_colors:
+    # load shedding
+    Elec load: '#70af1d' #purple red
+    Load Shedding: '#d73027' 
+    Heat shed: '#dd2e23'
+    # Heating
+    Long-term thermal storage: '#F227F5'
+    Water pits: '#F227F5'
+    Water pits ch/dis: '#F227F5'
+    Short-term thermal storage: '#70af1d'
+    Water tanks: '#70af1d'
+    Water tanks ch/dis: '#70af1d'
+    Urban Central Heat: '#298c81'
+    Urban Decentral Heat: '#6895dd'
     # wind
     onwind: "#235ebc"
     onshore wind: "#235ebc"
+    Onshore wind: "#235ebc"
     offwind: "#6895dd"
     offshore wind: "#6895dd"
+    Offshore wind: "#6895dd"
     offwind-ac: "#6895dd"
     offshore wind (AC): "#6895dd"
     offshore wind ac: "#6895dd"
@@ -276,17 +423,23 @@ plotting:
     offshore wind float: "#b5e2fa"
     # water
     hydro: '#298c81'
+    Hydro: '#298c81'
     hydro reservoir: '#298c81'
     ror: '#3dbfb0'
     run of river: '#3dbfb0'
     hydroelectricity: '#298c81'
     PHS: '#51dbcc'
+    PHS charger: '#51dbcc'
+    PHS discharger: '#51dbcc'
     hydro+PHS: "#08ad97"
+    Reservoir & Dam: '#298c81'
     # solar
     solar: "#f9d002"
     solar PV: "#f9d002"
+    Solar PV: "#f9d002"
     solar-hsat: "#fdb915"
     solar thermal: '#ffbf2b'
+    Solar thermal: '#ffbf2b'
     residential rural solar thermal: '#f1c069'
     services rural solar thermal: '#eabf61'
     residential urban decentral solar thermal: '#e5bc5a'
@@ -297,9 +450,10 @@ plotting:
     OCGT: '#e0986c'
     OCGT marginal: '#e0986c'
     OCGT-heat: '#e0986c'
-    gas boiler: '#db6a25'
-    gas boilers: '#db6a25'
-    gas boiler marginal: '#db6a25'
+    gas boiler: '#c9c9c9'
+    Gas boiler: '#c9c9c9'
+    gas boilers: '#c9c9c9'
+    gas boiler marginal: '#c9c9c9'
     residential rural gas boiler: '#d4722e'
     residential urban decentral gas boiler: '#cb7a36'
     services rural gas boiler: '#c4813f'
@@ -351,6 +505,7 @@ plotting:
     # biomass
     biogas: '#e3d37d'
     biomass: '#baa741'
+    Biomass: '#baa741'
     solid biomass: '#baa741'
     municipal solid waste: '#91ba41'
     solid biomass import: '#d5ca8d'
@@ -369,7 +524,8 @@ plotting:
     biomass to liquid: '#32CD32'
     unsustainable solid biomass: '#998622'
     unsustainable bioliquids: '#32CD32'
-    electrobiofuels: 'red'
+    electrobiofuels: '#e05b09'
+    Electrobiofuels: '#e05b09'
     BioSNG: '#123456'
     BioSNG CC: '#45233b'
     solid biomass to hydrogen: '#654321'
@@ -382,14 +538,20 @@ plotting:
     Electric load: '#110d63'
     electric demand: '#110d63'
     electricity: '#110d63'
+    El. grid: '#110d63'
     industry electricity: '#2d2a66'
     industry new electricity: '#2d2a66'
     agriculture electricity: '#494778'
     # battery + EVs
     battery: '#ace37f'
+    Battery: '#ace37f'
+    Battery: '#ace37f'
+    Battery ch/dis: '#ace37f'
     battery storage: '#ace37f'
     battery charger: '#88a75b'
     battery discharger: '#5d4e29'
+    Battery charger: '#88a75b'
+    Battery discharger: '#5d4e29'
     home battery: '#80c944'
     home battery storage: '#80c944'
     home battery charger: '#5e8032'
@@ -399,6 +561,25 @@ plotting:
     land transport EV: '#baf238'
     land transport demand: '#38baf2'
     EV battery: '#baf238'
+    # all battery variation:
+    li-ion: '#ace37f'
+    li-ion charger: '#ace37f'
+    li-ion discharger: '#ace37f'
+    lfp: '#ace37f'
+    lfp charger: '#ace37f'
+    lfp discharger: '#ace37f'
+    vanadium: '#9B111E'
+    vanadium charger: '#9B111E'
+    vanadium discharger: '#9B111E'
+    lair: '#87CEEB'
+    lair charger: '#87CEEB'
+    lair discharger: '#87CEEB'
+    pair: '#003366'
+    pair charger: '#003366'
+    pair discharger: '#003366'
+    iron-air: '#edba1c'
+    iron-air charger: '#edba1c'
+    iron-air discharger: '#edba1c'
     # hot water storage
     water tanks: '#e69487'
     residential rural water tanks: '#f7b7a3'
@@ -432,15 +613,19 @@ plotting:
     Heat load: '#cc1f1f'
     heat: '#cc1f1f'
     heat vent: '#aa3344'
+    Heat vent: '#aa3344'
     heat demand: '#cc1f1f'
     rural heat: '#ff5c5c'
+    rural heat dsm: '#ff5c5c'
     residential rural heat: '#ff7c7c'
     services rural heat: '#ff9c9c'
     central heat: '#cc1f1f'
     urban central heat: '#d15959'
+    urban central heat dsm: '#d15959'
     urban central heat vent: '#a74747'
     decentral heat: '#750606'
     residential urban decentral heat: '#a33c3c'
+    residential urban decentral heat dsm: '#a33c3c'
     services urban decentral heat: '#cc1f1f'
     low-temperature heat for industry: '#8f2727'
     process heat: '#ff0000'
@@ -448,6 +633,7 @@ plotting:
     # heat supply
     heat pumps: '#2fb537'
     heat pump: '#2fb537'
+    Heat pump: '#2fb537'
     air heat pump: '#36eb41'
     residential urban decentral air heat pump: '#48f74f'
     services urban decentral air heat pump: '#5af95d'
@@ -458,6 +644,10 @@ plotting:
     urban central geothermal heat pump: '#4f2144'
     geothermal heat pump: '#4f2144'
     geothermal heat direct utilisation: '#ba91b1'
+    river_water heat: '#4bb9f2'
+    river_water heat pump: '#4bb9f2'
+    sea_water heat: '#0b222e'
+    sea_water heat pump: '#0b222e'
     ground heat pump: '#2fb537'
     residential rural ground heat pump: '#4f2144'
     residential rural air heat pump: '#48f74f'
@@ -471,6 +661,7 @@ plotting:
     CHP electric: '#8a5751'
     district heating: '#e8beac'
     resistive heater: '#d8f9b8'
+    Resistive heater: '#d8f9b8'
     residential rural resistive heater: '#bef5b5'
     residential urban decentral resistive heater: '#b2f1a9'
     services rural resistive heater: '#a5ed9d'
@@ -493,22 +684,27 @@ plotting:
     land transport fuel cell: '#6b3161'
     H2 pipeline: '#f081dc'
     H2 pipeline retrofitted: '#ba99b5'
-    H2 Fuel Cell: '#c251ae'
-    H2 fuel cell: '#c251ae'
+    H2 Fuel Cell: '#6b3161'
+    H2 fuel cell: '#6b3161'
+    Fuel cell: '#6b3161'
     H2 turbine: '#991f83'
+    H2 Turbine: '#991f83'
     H2 Electrolysis: '#ff29d9'
     H2 electrolysis: '#ff29d9'
     # ammonia
     NH3: '#46caf0'
     ammonia: '#46caf0'
+    Ammonia: '#46caf0'
     ammonia store: '#00ace0'
     ammonia cracker: '#87d0e6'
     Haber-Bosch: '#076987'
     # syngas
     Sabatier: '#9850ad'
     methanation: '#c44ce6'
+    Methanation: '#c44ce6'
     methane: '#c44ce6'
     # synfuels
+    Industry chains: '#FF7B00'
     Fischer-Tropsch: '#25c49a'
     liquid: '#25c49a'
     kerosene for aviation: '#a1ffe6'
@@ -518,6 +714,7 @@ plotting:
     Methanol steam reforming: '#FFBF00'
     Methanol steam reforming CC: '#A2EA8A'
     methanolisation: '#00FFBF'
+    Methanolisation: '#00FFBF'
     biomass-to-methanol: '#EAD28A'
     biomass-to-methanol CC: '#EADBAD'
     allam methanol: '#B98F76'
@@ -526,6 +723,7 @@ plotting:
     OCGT methanol: '#B98F76'
     methanol: '#FF7B00'
     methanol transport: '#FF7B00'
+    Methanol storage: '#FF7B00'
     shipping methanol: '#468c8b'
     industry methanol: '#468c8b'
     # co2
@@ -541,9 +739,13 @@ plotting:
     # emissions
     process emissions CC: '#000000'
     process emissions: '#222222'
+    Process emissions: '#222222'
+    
     process emissions to stored: '#444444'
     process emissions to atmosphere: '#888888'
     oil emissions: '#aaaaaa'
+    Oil & Liquid Fuels: '#654321'
+    Oil storage: '#654321'
     shipping oil emissions: "#555555"
     shipping methanol emissions: '#666666'
     land transport oil emissions: '#777777'
@@ -561,9 +763,10 @@ plotting:
     geothermal heat: '#ba91b1'
     geothermal district heat: '#d19D00'
     geothermal organic rankine cycle: '#ffbf00'
-    AC: "#70af1d"
-    AC-AC: "#70af1d"
-    AC line: "#70af1d"
+    AC: "#2d2a66"
+    Grid: "#2d2a66"
+    AC-AC: "#2d2a66"
+    AC line: "#2d2a66"
     links: "#8a1caf"
     HVDC links: "#8a1caf"
     DC: "#8a1caf"
@@ -579,3 +782,4 @@ plotting:
     import NH3: '#e2ed74'
     import oil: '#93eda2'
     import methanol: '#87d0e6'
+    Industry demand: '#2d2a66'

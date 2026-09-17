@@ -1,0 +1,32 @@
+#!/bin/bash
+# Generic executor — all cluster settings come from environment variables
+# set by the calling script (see run_hourly.sh / run_mga_pipeline.sh).
+# Sensible fallbacks apply if a variable isn't set.
+
+PARTITION="${SNK_PARTITION:-windq}"
+TIME_LIMIT="${SNK_TIME_LIMIT:-12:00:00}"
+CPUS_PER_TASK="${SNK_CPUS_PER_TASK:-32}"
+EXCLUDE_NODES="${SNK_EXCLUDE_NODES:-}"
+RESTART_TIMES="${SNK_RESTART_TIMES:-3}"
+
+# Safety net: some Sophia nodes intermittently drop the "extremes"
+# supplementary group needed to read /groups/EXTREMES.
+if ! id -nG | grep -qw extremes; then
+    exec sg extremes -c "bash \"$0\" $*"
+fi
+
+LOG_DIR="${SLURM_LOG_DIR:-slurm_logs}"
+mkdir -p "$LOG_DIR"
+
+EXCLUDE_FLAG=""
+[ -n "$EXCLUDE_NODES" ] && EXCLUDE_FLAG="--exclude=$EXCLUDE_NODES"
+
+snakemake prepare_sector_networks --rerun-incomplete \
+    --executor cluster-generic \
+    --cluster-generic-submit-cmd "$PWD/slurm_submit_extremes.sh --parsable -p $PARTITION -n 1 --exclusive \
+        --output=${LOG_DIR}/slurm-%j.out \
+        $EXCLUDE_FLAG \
+        --time=$TIME_LIMIT --cpus-per-task=$CPUS_PER_TASK" \
+    --cluster-generic-cancel-cmd "scancel" \
+    --restart-times "$RESTART_TIMES" \
+    "$@"

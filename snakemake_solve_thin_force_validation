@@ -1,0 +1,7 @@
+snakemake --rerun-incomplete --latency-wait 100 \
+  -R validation_mga \
+  --allowed-rules validation_mga validation_mga_all \
+  --executor cluster-generic \
+  --cluster-generic-submit-cmd "sbatch --parsable -p workq -n 1 --exclusive --output=slurm_logs/slurm-%j.out --time=12:00:00 --cpus-per-task=32" \
+  validation_mga_all \
+  "$@"

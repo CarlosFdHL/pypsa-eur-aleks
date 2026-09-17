@@ -4,7 +4,7 @@
 
 
 """
-Prepare PyPSA network for solving according to :ref:`opts` and :ref:`ll`, such
+Prepare PyPSA network for solving according to :ref:`opts`, such
 as.
 
 - adding an annual **limit** of carbon-dioxide emissions,
@@ -29,15 +29,17 @@ import logging
 import numpy as np
 import pandas as pd
 import pypsa
+from pathlib import Path
 
 from scripts._helpers import (
     PYPSA_V1,
     configure_logging,
     get,
+    load_costs,
     set_scenario_config,
     update_config_from_wildcards,
 )
-from scripts.add_electricity import load_costs, set_transmission_costs
+from scripts.add_electricity import set_transmission_costs
 
 # Allow for PyPSA versions <0.35
 if PYPSA_V1:
@@ -60,11 +62,13 @@ def modify_attribute(n, adjustments, investment_year, modification="factor"):
             logger.warning(f"{c} needs to be a PyPSA Component")
             continue
         for carrier in change_dict[c].keys():
-            ind_i = n.df(c)[n.df(c).carrier == carrier].index
+            ind_i = (
+                n.components[c].static[n.components[c].static.carrier == carrier].index
+            )
             if ind_i.empty:
                 continue
             for parameter in change_dict[c][carrier].keys():
-                if parameter not in n.df(c).columns:
+                if parameter not in n.components[c].static.columns:
                     logger.warning(f"Attribute {parameter} needs to be in {c} columns.")
                     continue
                 if investment_year:
@@ -73,10 +77,10 @@ def modify_attribute(n, adjustments, investment_year, modification="factor"):
                     factor = change_dict[c][carrier][parameter]
                 if modification == "factor":
                     logger.info(f"Modify {parameter} of {carrier} by factor {factor} ")
-                    n.df(c).loc[ind_i, parameter] *= factor
+                    n.components[c].static.loc[ind_i, parameter] *= factor
                 elif modification == "absolute":
                     logger.info(f"Set {parameter} of {carrier} to {factor} ")
-                    n.df(c).loc[ind_i, parameter] = factor
+                    n.components[c].static.loc[ind_i, parameter] = factor
                 else:
                     logger.warning(
                         f"{modification} needs to be either 'absolute' or 'factor'."
@@ -128,20 +132,24 @@ def add_emission_prices(n, emission_prices={"co2": 0.0}, exclude_co2=False):
 
 
 def add_dynamic_emission_prices(n, fn):
-    co2_price = pd.read_csv(fn, index_col=0, parse_dates=True)
-    co2_price = co2_price[~co2_price.index.duplicated()]
-    co2_price = co2_price.reindex(n.snapshots).ffill().bfill()
+    co2_price = (
+        pd.read_csv(fn, index_col=0, parse_dates=True).squeeze().reindex(n.snapshots)
+    )
 
     emissions = (
         n.generators.carrier.map(n.carriers.co2_emissions) / n.generators.efficiency
     )
-    co2_cost = expand_series(emissions, n.snapshots).T.mul(co2_price.iloc[:, 0], axis=0)
+    co2_cost = expand_series(emissions, n.snapshots).T.mul(co2_price, axis=0)
 
     static = n.generators.marginal_cost
     dynamic = n.get_switchable_as_dense("Generator", "marginal_cost")
 
     marginal_cost = dynamic + co2_cost.reindex(columns=dynamic.columns, fill_value=0)
     n.generators_t.marginal_cost = marginal_cost.loc[:, marginal_cost.ne(static).any()]
+
+    # remove the static marginal cost from generators with dynamic marginal cost
+    affected = co2_cost.where(co2_cost > 0).dropna(axis=1).columns
+    n.generators.loc[affected, "marginal_cost"] = 0.0
 
 
 def set_line_s_max_pu(n, s_max_pu=0.7):
@@ -201,17 +209,83 @@ def average_every_nhours(n, offset, drop_leap_day=False):
     m.set_snapshots(snapshot_weightings.index)
     m.snapshot_weightings = snapshot_weightings
 
-    for c in n.iterate_components():
+    for c in n.components:
         pnl = getattr(m, c.list_name + "_t")
-        for k, df in c.pnl.items():
+        for k, df in c.dynamic.items():
             if not df.empty:
                 pnl[k] = df.resample(offset).mean()
 
     return m
 
 
-def apply_time_segmentation(n, segments, solver_name="cbc"):
-    logger.info(f"Aggregating time series to {segments} segments.")
+def _modelled_years(sns):
+    """Return (year, block) per contiguous weather year; years span July to June."""
+    d = sns.to_series().diff()
+    step = d.median()
+    starts = np.flatnonzero(np.r_[True, d.values[1:] > 1.5 * step])
+    ends = np.r_[starts[1:], len(sns)]
+    blocks = [(int(sns[s].year), sns[s:e]) for s, e in zip(starts, ends)]
+    years = [y for y, _ in blocks]
+    if len(set(years)) != len(years):
+        raise ValueError(f"Repeated starting years across snapshot blocks: {years}")
+    return blocks
+
+
+def _price_signal(
+    n, 
+    price_dir,
+    ) -> pd.DataFrame:
+    """Load one price file per modelled year and align it with the network snapshots."""
+    price_dir = Path(price_dir)
+    blocks = _modelled_years(n.snapshots)
+    logger.info(
+        f"Segmenting on prices for {len(blocks)} weather year(s): "
+        + ", ".join(f"{y} ({len(b)} snapshots)" for y, b in blocks)
+    )
+
+    parts = []
+    for year, block in blocks:
+        path = price_dir / f"{year}.csv"
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Price-based segmentation requested but {path} is missing."
+            )
+
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        if df.shape[1] != 1:
+            raise ValueError(
+                f"{path} must hold a single price column, found {list(df.columns)}"
+            )
+        s = df.iloc[:, 0].astype(float).sort_index()
+        if s.index.has_duplicates:
+            raise ValueError(f"{path} has duplicate timestamps.")
+        if s.isna().any():
+            raise ValueError(f"{path} contains NaNs.")
+        if s.index[-1] < block[-1]:
+            raise ValueError(f"{path} ends at {s.index[-1]}, block runs to {block[-1]}.")
+
+        aligned = s.reindex(block, method="ffill") # If time resolution is greater than 1H fills the missing values with the last available value
+        if aligned.isna().any():
+            raise ValueError(
+                f"{path} does not cover snapshot {block[aligned.isna()][0]} "
+                f"(file spans {s.index[0]} to {s.index[-1]})."
+            )
+        logger.info(
+            f"  {path.name}: {s.index.to_series().diff().median()} resolution, "
+            f"mean {aligned.mean():.1f}, range [{aligned.min():.1f}, {aligned.max():.1f}]"
+        )
+        parts.append(aligned)
+
+    prices = pd.concat(parts)
+    lo, hi = prices.min(), prices.max()
+    if hi - lo < 1e-6:
+        raise ValueError("Price signal is flat; the source networks were not solved.")
+    return ((prices - lo) / (hi - lo)).to_frame("price") # Normalize using minmax
+
+
+def apply_time_segmentation(n, segments, solver_name="cbc", price_dir=None):
+    basis = "prices" if price_dir else "profiles"
+    logger.info(f"Aggregating time series to {segments} segments based on {basis}.")
     try:
         import tsam.timeseriesaggregation as tsam
     except ImportError:
@@ -222,13 +296,17 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     p_max_pu_norm = n.generators_t.p_max_pu.max()
     p_max_pu = n.generators_t.p_max_pu / p_max_pu_norm
 
+    # Replace p_max_pu that are NaN with 0's (assume no possible generation, this hapepns for BA0 and SI0 offwind-float,)
+    p_max_pu = p_max_pu.fillna(0)
+
     load_norm = n.loads_t.p_set.max()
     load = n.loads_t.p_set / load_norm
 
     inflow_norm = n.storage_units_t.inflow.max()
     inflow = n.storage_units_t.inflow / inflow_norm
 
-    raw = pd.concat([p_max_pu, load, inflow], axis=1, sort=False)
+    profiles = pd.concat([p_max_pu, load, inflow], axis=1, sort=False)
+    raw = _price_signal(n, price_dir) if price_dir else profiles
 
     agg = tsam.TimeSeriesAggregation(
         raw,
@@ -241,19 +319,32 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
 
     segmented = agg.createTypicalPeriods()
 
-    weightings = segmented.index.get_level_values("Segment Duration")
-    offsets = np.insert(np.cumsum(weightings[:-1]), 0, 0)
-    snapshots = [n.snapshots[0] + pd.Timedelta(f"{offset}h") for offset in offsets]
+    # tsam counts rows, not hours; convert to snapshots and real durations
+    steps = segmented.index.get_level_values("Segment Duration").astype(int).values
+    starts = np.insert(np.cumsum(steps[:-1]), 0, 0)
+    seg_id = np.repeat(np.arange(len(steps)), steps)
+    assert len(seg_id) == len(n.snapshots)
 
-    n.set_snapshots(pd.DatetimeIndex(snapshots, name="name"))
+    snapshots = pd.DatetimeIndex(n.snapshots[starts], name="snapshot")
+    w = n.snapshot_weightings.objective.values
+    hours = pd.Series(w, index=seg_id).groupby(level=0).sum()
+
+    def segment_mean(df):
+        num = pd.DataFrame(df.values * w[:, None], index=seg_id, columns=df.columns)
+        out = num.groupby(level=0).sum().div(hours, axis=0)
+        out.index = snapshots
+        return out
+
+    profiles = segment_mean(profiles)
+
+    n.set_snapshots(snapshots)
     n.snapshot_weightings = pd.Series(
-        weightings, index=snapshots, name="weightings", dtype="float64"
+        hours.values, index=snapshots, name="weightings", dtype="float64"
     )
 
-    segmented.index = snapshots
-    n.generators_t.p_max_pu = segmented[n.generators_t.p_max_pu.columns] * p_max_pu_norm
-    n.loads_t.p_set = segmented[n.loads_t.p_set.columns] * load_norm
-    n.storage_units_t.inflow = segmented[n.storage_units_t.inflow.columns] * inflow_norm
+    n.generators_t.p_max_pu = profiles[n.generators_t.p_max_pu.columns] * p_max_pu_norm
+    n.loads_t.p_set = profiles[n.loads_t.p_set.columns] * load_norm
+    n.storage_units_t.inflow = profiles[n.storage_units_t.inflow.columns] * inflow_norm
 
     return n
 
@@ -299,8 +390,8 @@ if __name__ == "__main__":
 
         snakemake = mock_snakemake(
             "prepare_network",
-            clusters="37",
-            opts="Co2L-4H",
+            clusters="50",
+            opts="",
         )
     configure_logging(snakemake)  # pylint: disable=E0606
     set_scenario_config(snakemake)
@@ -308,12 +399,7 @@ if __name__ == "__main__":
 
     n = pypsa.Network(snakemake.input[0])
     Nyears = n.snapshot_weightings.objective.sum() / 8760.0
-    costs = load_costs(
-        snakemake.input.tech_costs,
-        snakemake.params.costs,
-        snakemake.params.max_hours,
-        Nyears,
-    )
+    costs = load_costs(snakemake.input.costs)
 
     set_line_s_max_pu(n, snakemake.params.lines["s_max_pu"])
 
@@ -337,16 +423,20 @@ if __name__ == "__main__":
 
     maybe_adjust_costs_and_potentials(n, snakemake.params["adjustments"])
 
-    emission_prices = snakemake.params.costs["emission_prices"]
-    if emission_prices["co2_monthly_prices"]:
+    emission_prices = snakemake.params.emission_prices
+    if emission_prices["dynamic"]:
         logger.info(
             "Setting time dependent emission prices according spot market price"
         )
         add_dynamic_emission_prices(n, snakemake.input.co2_price)
     elif emission_prices["enable"]:
-        add_emission_prices(
-            n, dict(co2=snakemake.params.costs["emission_prices"]["co2"])
-        )
+        if isinstance(emission_prices["co2"], dict):
+            logger.warning(
+                "Not setting emission prices on generators and storage units, "
+                "due to their configuration per planning horizon"
+            )
+        elif isinstance(emission_prices["co2"], float):
+            add_emission_prices(n, dict(co2=emission_prices["co2"]))
 
     kind = snakemake.params.transmission_limit[0]
     factor = snakemake.params.transmission_limit[1:]

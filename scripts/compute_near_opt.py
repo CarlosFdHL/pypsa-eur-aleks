@@ -1,0 +1,463 @@
+# SPDX-FileCopyrightText: 2025 Aleksander Grochowicz
+#
+# SPDX-License-Identifier: MIT
+
+"""
+Compute near-optimal solutions using Modeling to Generate Alternatives (MGA).
+
+This script performs MGA optimization to explore the space of near-optimal solutions
+for energy system planning. It relies on pypsa-mga for the core MGA functionality.
+"""
+
+import logging
+import numpy as np
+import pandas as pd
+import pypsa
+from pathlib import Path
+
+from _helpers import (
+    configure_logging,
+    set_scenario_config,
+    update_config_from_wildcards,
+)
+from mga_helpers import export_mga_capacities
+from solve_second_network import fix_networks
+from pypsa.optimization.mga import hash_direction, hash_mga
+
+logger = logging.getLogger(__name__)
+
+
+def load_dimensions_from_config(config_projection):
+    """
+    Load MGA dimensions from config projection specification.
+
+    Parameters
+    ----------
+    config_projection : dict
+        Projection configuration with dimension categories
+
+    Returns
+    -------
+    dict
+        Dimensions in pypsa-mga format
+    """
+    dimensions = {}
+
+    for category, specs in config_projection.items():
+        # Each category becomes a dimension
+        category_dict = {}
+
+        for spec in specs:
+            carrier = spec['carrier']
+            component = spec['component']
+            attribute = spec['attribute']
+            weight_attr = spec['weight']
+
+            # Build nested structure: {component: {attribute: {carrier: weight}}}
+            if component not in category_dict:
+                category_dict[component] = {}
+            if attribute not in category_dict[component]:
+                category_dict[component][attribute] = {}
+
+            # For now, we use the carrier name as placeholder
+            # The actual weight will be filled from the network
+            category_dict[component][attribute][carrier] = weight_attr
+
+        dimensions[category] = category_dict
+
+    return dimensions
+
+
+def fill_dimension_weights(n, dimensions):
+    """
+    Fill dimension weights with actual values from the network.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        Network object
+    dimensions : dict
+        Dimensions structure with weight attribute names
+
+    Returns
+    -------
+    dict
+        Dimensions with actual numeric weights
+    """
+    filled_dimensions = {}
+
+    for dim_name, components in dimensions.items():
+        filled_components = {}
+
+        for component, attributes in components.items():
+            comp_df = n.df(component)
+            filled_attributes = {}
+
+            for attribute, carriers in attributes.items():
+                filled_carriers = {}
+
+                for carrier, weight_attr in carriers.items():
+                    # Find components matching this carrier
+                    matching = comp_df[comp_df['carrier'] == carrier].index
+
+                    if len(matching) > 0:
+                        # Get weight values for matching components
+                        for comp_name in matching:
+                            weight_value = comp_df.loc[comp_name, weight_attr]
+                            filled_carriers[comp_name] = weight_value
+
+                if filled_carriers:
+                    filled_attributes[attribute] = filled_carriers
+
+            if filled_attributes:
+                filled_components[component] = filled_attributes
+
+        if filled_components:
+            filled_dimensions[dim_name] = filled_components
+
+    return filled_dimensions
+
+
+def generate_minmax_directions(dimension_names):
+    """
+    Generate unit vectors in positive and negative directions.
+
+    Parameters
+    ----------
+    dimension_names : list
+        List of dimension names
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with direction vectors (one per row)
+    """
+    directions = []
+
+    # Create unit vectors in each dimension
+    for i, dim in enumerate(dimension_names):
+        # Positive direction
+        pos_dir = np.zeros(len(dimension_names))
+        pos_dir[i] = 1.0
+        directions.append(pos_dir)
+
+        # Negative direction
+        neg_dir = np.zeros(len(dimension_names))
+        neg_dir[i] = -1.0
+        directions.append(neg_dir)
+
+    return pd.DataFrame(directions, columns=dimension_names)
+
+
+def generate_random_directions(dimension_names, n_directions, seed=None):
+    """
+    Generate random uniformly distributed directions on unit sphere.
+
+    Parameters
+    ----------
+    dimension_names : list
+        List of dimension names
+    n_directions : int
+        Number of directions to generate
+    seed : int, optional
+        Random seed for reproducibility
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with direction vectors (one per row)
+    """
+    from pypsa.optimization.mga import generate_directions_random
+
+    directions = generate_directions_random(
+        keys=dimension_names,
+        n_directions=n_directions,
+        seed=seed
+    )
+
+    return directions
+
+
+def generate_halton_directions(dimension_names, n_directions):
+    """
+    Generate directions using Halton sequence.
+
+    Parameters
+    ----------
+    dimension_names : list
+        List of dimension names
+    n_directions : int
+        Number of directions to generate
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with direction vectors (one per row)
+    """
+    from pypsa.optimization.mga import generate_directions_halton
+
+    directions = generate_directions_halton(
+        keys=dimension_names,
+        n_directions=n_directions
+    )
+
+    return directions
+
+
+def combine_results(directions_df, coordinates_df):
+    """
+    Combine directions and coordinates into single DataFrame with dir_hash.
+
+    Parameters
+    ----------
+    directions_df : pd.DataFrame
+        Direction vectors
+    coordinates_df : pd.DataFrame
+        Coordinate values
+
+    Returns
+    -------
+    pd.DataFrame
+        Combined DataFrame with columns: dir_hash, dir_*, coord_*
+    """
+    # Compute hash for each direction using pypsa-mga's hash function
+    dir_hashes = []
+    for idx, row in directions_df.iterrows():
+        dir_hash = hash_direction(row)
+        dir_hashes.append(dir_hash)
+
+    # Rename columns
+    directions_renamed = directions_df.copy()
+    directions_renamed.columns = [f"dir_{col}" for col in directions_df.columns]
+
+    coordinates_renamed = coordinates_df.copy()
+    coordinates_renamed.columns = [f"coord_{col}" for col in coordinates_df.columns]
+
+    # Combine
+    result = pd.DataFrame({'dir_hash': dir_hashes})
+    result = pd.concat([result, directions_renamed, coordinates_renamed], axis=1)
+
+    return result
+
+
+if __name__ == "__main__":
+    if "snakemake" not in globals():
+        from _helpers import mock_snakemake
+
+        snakemake = mock_snakemake(
+            "compute_near_opt",
+            opts="",
+            clusters="5",
+            configfiles="config/test/config.overnight.yaml",
+        )
+
+    configure_logging(snakemake)
+    set_scenario_config(snakemake)
+    update_config_from_wildcards(snakemake.config, snakemake.wildcards)
+
+    # Load network
+    logger.info(f"Loading network from {snakemake.input.network}")
+    n = pypsa.Network(snakemake.input.network)
+    m = n.copy()
+
+    # Fix network to prevent transmission expansion
+    logger.info("Fixing network capacities")
+    fix_networks(m, n)
+
+    # Load MGA configuration
+    mga_config = snakemake.config.get("near-opt", {})
+    if not mga_config:
+        raise ValueError("No 'near-opt' configuration found in config file")
+
+    # Compute slack
+    slack_config = mga_config.get("slack", {})
+    if slack_config.get("relative", True):
+        slack = slack_config.get("value", 0.05)
+        logger.info(f"Using relative slack: {slack}")
+    else:
+        # Absolute slack in currency units
+        absolute_slack = float(slack_config.get("value", 0.0))
+        if not hasattr(n, 'objective'):
+            raise ValueError("Network has no objective value. Run optimization first.")
+        # Convert objective to scalar - handle various types
+        obj = n.objective
+        if isinstance(obj, (pd.Series, pd.DataFrame)):
+            objective_value = float(obj.sum())
+        elif isinstance(obj, np.ndarray):
+            objective_value = float(obj.sum())
+        else:
+            objective_value = float(obj)
+
+        if objective_value == 0:
+            raise ValueError("Network objective is zero.")
+        slack = float(absolute_slack) / float(objective_value)
+        logger.info(f"Using absolute slack: {absolute_slack} (relative: {slack})")
+
+    # Load and fill dimensions
+    logger.info("Loading projection dimensions from config")
+    config_projection = mga_config.get("projection", {})
+    dimensions = load_dimensions_from_config(config_projection)
+    dimensions = fill_dimension_weights(m, dimensions)
+
+    dimension_names = list(dimensions.keys())
+    logger.info(f"MGA dimensions: {dimension_names}")
+
+    # Generate directions
+    approx_config = mga_config.get("approx", {})
+    all_directions = []
+
+    # Min-max directions (if enabled)
+    if approx_config.get("minmax", False):
+        logger.info("Generating min-max directions")
+        minmax_dirs = generate_minmax_directions(dimension_names)
+        all_directions.append(minmax_dirs)
+        logger.info(f"Generated {len(minmax_dirs)} min-max directions")
+
+    # Additional directions
+    n_iterations = approx_config.get("iterations", 0)
+    if n_iterations > 0:
+        direction_method = approx_config.get("directions", "random-uniform")
+
+        if direction_method == "random-uniform":
+            logger.info(f"Generating {n_iterations} random directions")
+            seed = approx_config.get("seed", 123)
+            random_dirs = generate_random_directions(dimension_names, n_iterations, seed)
+            all_directions.append(random_dirs)
+        elif direction_method == "halton":
+            logger.info(f"Generating {n_iterations} Halton directions")
+            halton_dirs = generate_halton_directions(dimension_names, n_iterations)
+            all_directions.append(halton_dirs)
+        else:
+            raise ValueError(f"Unknown direction method: {direction_method}")
+
+    # Combine all directions
+    if not all_directions:
+        raise ValueError("No directions generated. Enable minmax or set iterations > 0")
+
+    directions_df = pd.concat(all_directions, ignore_index=True)
+    logger.info(f"Total directions to explore: {len(directions_df)}")
+
+
+    # ADD EXTRA CONSTRAINTS
+    # Add min limit on renewable generation
+    RENEWABLE_CARRIERS = ["solar", "solar-hsat", "onwind", "offwind-ac", "offwind-dc", "offwind-float"]
+    RENEWABLE_MWH_MIN = 6635970580.7 #5308776464.6  # 80% de 6635970580.7 MWh (n_1941_3H)
+
+    def add_min_renewable_constraint(n, snapshots):
+        m = n.model
+        w = n.snapshot_weightings.generators.loc[snapshots]
+
+        gens = n.generators.query("carrier in @RENEWABLE_CARRIERS").index
+        gen_p = m["Generator-p"].sel(name=gens, snapshot=snapshots)
+        gen_energy = (gen_p * w).sum()
+
+        hydro_su = n.storage_units.query("carrier == 'hydro'").index
+        hydro_p = m["StorageUnit-p_dispatch"].sel(name=hydro_su, snapshot=snapshots)
+        hydro_energy = (hydro_p * w).sum()
+
+        total_renewable = gen_energy + hydro_energy
+
+        m.add_constraints(total_renewable >= RENEWABLE_MWH_MIN, name="min_renewable_generation")
+
+    # Add limit on total direction expansion
+    BATTERY_STORE_E_NOM_MAX = 5045457.9  # 120% of cost-optimal aggregate e_nom_opt, MWh
+    BATTERY_CHARGER_P_NOM_MAX = 762891.0  # 120% of cost-optimal aggregate p_nom_opt, MW
+
+    def add_direction_capacity_expansion_limit(n):
+        m = n.model
+
+        # discharger capacity is coupled to charger via a separate efficiency-linked constraint, so only charger needs a bound here
+        battery_store = n.stores.query("carrier == 'battery'").index
+        battery_charger = n.links.query("carrier == 'battery charger'").index
+
+        store_e_nom = m["Store-e_nom"].sel(name=battery_store)
+        charger_p_nom = m["Link-p_nom"].sel(name=battery_charger)
+
+        m.add_constraints(store_e_nom.sum() <= BATTERY_STORE_E_NOM_MAX, name="battery_e_nom_expansion_limit")
+        m.add_constraints(charger_p_nom.sum() <= BATTERY_CHARGER_P_NOM_MAX, name="battery_charger_p_nom_expansion_limit")        
+
+    add_min_renewable_constraint(m, m.snapshots)
+    # add_direction_capacity_expansion_limit(m)
+    # END ADD EXTRA CONSTRAINTS
+
+    # Run MGA optimization with caching
+    logger.info("Running MGA optimization")
+    max_parallel = approx_config.get("max_parallel", 4)
+    cache_dir = mga_config.get("cache_dir", None)
+
+    # Get solver configuration
+    solver_config = snakemake.config.get("solving", {})
+    solver_name = solver_config.get("solver", {}).get("name", "gurobi")
+    solver_options = solver_config.get("solver_options", {}).get(
+        solver_config.get("solver", {}).get("options", "default"), {}
+    )
+
+    logger.info(f"Using solver: {solver_name}")
+
+    successful_directions, successful_coordinates = m.optimize.optimize_mga_in_multiple_directions(
+        directions=directions_df,
+        dimensions=dimensions,
+        cache_dir=cache_dir,
+        mga_extra_functionality=export_mga_capacities,
+        snapshots=None,
+        multi_investment_periods=False,
+        slack=slack,
+        model_kwargs=None,
+        max_parallel=max_parallel,
+        solver_name=solver_name,
+        solver_options=solver_options,
+    )
+
+    logger.info(f"Successfully solved {len(successful_directions)} out of {len(directions_df)} directions")
+
+    # Compute network hash for storage
+    logger.info("Computing network hash")
+    network_hash = hash_mga(
+        m,
+        dimensions,
+        slack,
+        snapshots=None,  # Uses all snapshots
+        multi_investment_periods=False,
+    )
+    logger.info(f"Network hash: {network_hash}")
+
+    # Combine and export results
+    logger.info("Combining results")
+    combined_results = combine_results(successful_directions, successful_coordinates)
+
+    logger.info(f"Exporting results to {snakemake.output.near_opt_solutions}")
+    combined_results.to_csv(snakemake.output.near_opt_solutions, index=False)
+
+    # Save network hash to separate file
+    logger.info(f"Saving network hash to {snakemake.output.network_hash}")
+    Path(snakemake.output.network_hash).write_text(network_hash)
+
+    if approx_config.get("iterations", 0) == 0 and snakemake.params.get("save_network", False):
+        wc = snakemake.wildcards
+        network_dir = Path(snakemake.params.results_dir) / "near_opt" / "networks"
+        network_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"save_network=True: saving minmax networks to {network_dir}")
+
+        for _, direction_row in successful_directions.iterrows():
+            dir_hash = hash_direction(direction_row)
+            caps_path = Path(cache_dir) / "caps" / f"caps_{network_hash}_{dir_hash}.csv"
+
+            if not caps_path.exists():
+                logger.warning(f"Cache not found for dir_hash={dir_hash}, skipping: {caps_path}")
+                continue
+
+            # Apply optimised capacities from cache onto a fresh copy
+            n_out = m.copy()
+            caps = pd.read_csv(caps_path, index_col=[0, 1])
+            for (component, asset), row in caps.iterrows():
+                df = n_out.df(component)
+                if asset in df.index and "p_nom_opt" in row:
+                    df.loc[asset, "p_nom_opt"] = row["p_nom_opt"]
+
+            filename = (
+                f"{network_hash}_{dir_hash}.nc"
+            )
+            n_out.export_to_netcdf(str(network_dir / filename))
+            logger.info(f"Saved network in {network_dir / filename}")
+
+    logger.info("MGA computation complete")

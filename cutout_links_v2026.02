@@ -1,0 +1,6 @@
+mkdir -p data/cutout/archive/v1.0
+
+for f in /groups/EXTREMES/cutouts/europe-*-*-era5.nc; do
+  b=$(basename "$f")
+  ln -sfn "$f" "data/cutout/archive/v1.0/$b"
+done

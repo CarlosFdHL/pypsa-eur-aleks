@@ -19,6 +19,7 @@ import pandas as pd
 import pypsa
 import tsam.timeseriesaggregation as tsam
 import xarray as xr
+from pathlib import Path
 
 from scripts._helpers import (
     configure_logging,
@@ -27,6 +28,88 @@ from scripts._helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _modelled_years(sns):
+    """Return (year, block) per contiguous weather year; years span July to June."""
+    d = sns.to_series().diff()
+    step = d.median()
+    starts = np.flatnonzero(np.r_[True, d.values[1:] > 1.5 * step])
+    ends = np.r_[starts[1:], len(sns)]
+    blocks = [(int(sns[s].year), sns[s:e]) for s, e in zip(starts, ends)]
+    years = [y for y, _ in blocks]
+    if len(set(years)) != len(years):
+        raise ValueError(f"Repeated starting years across snapshot blocks: {years}")
+    return blocks
+
+
+def _price_signal(
+    n, 
+    price_dir,
+    price_weight_power,
+    ) -> pd.DataFrame:
+    """Load one price file per modelled year and align it with the network snapshots."""
+    price_dir = Path(price_dir)
+    blocks = _modelled_years(n.snapshots)
+    logger.info(
+        f"Segmenting on prices for {len(blocks)} weather year(s): "
+        + ", ".join(f"{y} ({len(b)} snapshots)" for y, b in blocks)
+    )
+
+    parts = []
+    for year, block in blocks:
+        path = price_dir / f"{year}.csv"
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Price-based segmentation requested but {path} is missing."
+            )
+
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        if df.shape[1] != 1:
+            raise ValueError(
+                f"{path} must hold a single price column, found {list(df.columns)}"
+            )
+        s = df.iloc[:, 0].astype(float).sort_index()
+        if s.index.has_duplicates:
+            raise ValueError(f"{path} has duplicate timestamps.")
+        if s.isna().any():
+            raise ValueError(f"{path} contains NaNs.")
+        step = s.index.to_series().diff().median()
+        covers_until = s.index[-1] + step
+        if covers_until <= block[-1]:
+            raise ValueError(
+                f"{path} covers until {covers_until} (exclusive), block runs to {block[-1]}."
+            )
+
+        aligned = s.reindex(block, method="ffill") # If time resolution is greater than 1H fills the missing values with the last available value
+        if aligned.isna().any():
+            raise ValueError(
+                f"{path} does not cover snapshot {block[aligned.isna()][0]} "
+                f"(file spans {s.index[0]} to {s.index[-1]})."
+            )
+        logger.info(
+            f"  {path.name}: {s.index.to_series().diff().median()} resolution, "
+            f"mean {aligned.mean():.1f}, range [{aligned.min():.1f}, {aligned.max():.1f}]"
+        )
+        parts.append(aligned)
+
+    prices = pd.concat(parts)
+    lo, hi = prices.min(), prices.quantile(0.995) # Normalization on 99.5%
+    if hi - lo < 1e-6:
+        raise ValueError("Price signal is flat; the source networks were not solved.")
+    normed = ((prices - lo) / (hi - lo)).clip(upper=1.0)
+
+    # Emphasize high-price hours: convex power transform on the normalized signal.
+    # power=1 linear behavior; power>1 stretches the spacing
+    # between high values (more weight to price spikes) and compresses low values.
+    weighted = normed ** price_weight_power
+
+    logger.info(
+        f"Normalising on [{lo:.1f}, {hi:.1f}] (99.5th pct), power={price_weight_power}; "
+        f"{(prices > hi).sum()} hours clipped, max was {prices.max():.1f}."
+    )
+    return weighted.to_frame("price")
+
 
 if __name__ == "__main__":
     if "snakemake" not in globals():
@@ -47,6 +130,14 @@ if __name__ == "__main__":
 
     n = pypsa.Network(snakemake.input.network)
     resolution = snakemake.params.time_resolution
+
+    if resolution["resolution_elec"] not in (False, 1, "1h", "1H"):
+        raise ValueError(
+            f"Invalid configuration: expected 'resolution_elec' = False for the "
+            f"sector-coupled model, received {resolution['resolution_elec']!r}. "
+            "Use 'resolution_sector' to define temporal resolution instead."
+        )
+    resolution = resolution["resolution_sector"]
 
     # Representative snapshots
     if not resolution or isinstance(resolution, str) and "sn" in resolution.lower():
@@ -90,14 +181,18 @@ if __name__ == "__main__":
 
     # Temporal segmentation
     elif isinstance(resolution, str) and "seg" in resolution.lower():
+        # If snakemake.config["segmentation"]["prices"] == True then use price-based segmentation, otherwise use profile-based segmentation
+        price_dir = "resources/prices" if snakemake.config.get("segmentation", {}).get("prices") else None
+        segmentation_strategy = "prices" if price_dir else "profiles"
+
         segments = int(resolution[:-3])
-        logger.info(f"Use temporal segmentation with {segments} segments")
+        logger.info(f"Use temporal segmentation with {segments} segments using {segmentation_strategy}")
 
         # Get all time-dependent data
         dfs = [
             pnl
-            for c in n.iterate_components()
-            for attr, pnl in c.pnl.items()
+            for c in n.components
+            for attr, pnl in c.dynamic.items()
             if not pnl.empty and attr != "e_min_pu"
         ]
         if snakemake.input.hourly_heat_demand_total:
@@ -107,12 +202,18 @@ if __name__ == "__main__":
                 .unstack(level=1)
             )
         if snakemake.input.solar_thermal_total:
-            dfs.append(
+            sts = (
                 xr.open_dataset(snakemake.input.solar_thermal_total)
                 .to_dataframe()
+                .rename(
+                    columns={"__xarray_dataarray_variable__": "solar thermal total"}
+                )
                 .unstack(level=1)
             )
+            sts.columns = sts.columns.droplevel(0)
+            dfs.append(sts)
         df = pd.concat(dfs, axis=1)
+        df = df.dropna(how="any")
 
         # Reset columns to flat index
         df = df.T.reset_index(drop=True).T
@@ -121,10 +222,12 @@ if __name__ == "__main__":
         annual_max = df.max().replace(0, 1)
         df = df.div(annual_max, level=0)
 
+        raw = _price_signal(n, price_dir, price_weight_power=1.0) if price_dir else df
+
         # Get representative segments
         agg = tsam.TimeSeriesAggregation(
-            df,
-            hoursPerPeriod=len(df),
+            raw,
+            hoursPerPeriod=len(raw),
             noTypicalPeriods=1,
             noSegments=segments,
             segmentation=True,
