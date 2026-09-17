@@ -28,7 +28,7 @@ echo "Waiting 60s before next step..."; sleep 60
 # 2. Solve thin
 echo ""
 echo "[2/4] Solving (thin)..."
-./snakemake_solve_thin --configfile="$CONFIG" --jobs=45
+./snakemake_solve_thin --configfile="$CONFIG" --jobs=2
 
 if [ $? -ne 0 ]; then echo "ERROR in step 2. Aborting."; exit 1; fi
 
