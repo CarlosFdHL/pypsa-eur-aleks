@@ -46,6 +46,7 @@ def _modelled_years(sns):
 def _price_signal(
     n, 
     price_dir,
+    price_weight_power,
     ) -> pd.DataFrame:
     """Load one price file per modelled year and align it with the network snapshots."""
     price_dir = Path(price_dir)
@@ -97,11 +98,17 @@ def _price_signal(
     if hi - lo < 1e-6:
         raise ValueError("Price signal is flat; the source networks were not solved.")
     normed = ((prices - lo) / (hi - lo)).clip(upper=1.0)
+
+    # Emphasize high-price hours: convex power transform on the normalized signal.
+    # power=1 linear behavior; power>1 stretches the spacing
+    # between high values (more weight to price spikes) and compresses low values.
+    weighted = normed ** price_weight_power
+
     logger.info(
-        f"Normalising on [{lo:.1f}, {hi:.1f}] (99.5th pct); "
+        f"Normalising on [{lo:.1f}, {hi:.1f}] (99.5th pct), power={price_weight_power}; "
         f"{(prices > hi).sum()} hours clipped, max was {prices.max():.1f}."
     )
-    return normed.to_frame("price")
+    return weighted.to_frame("price")
 
 
 if __name__ == "__main__":
@@ -174,8 +181,10 @@ if __name__ == "__main__":
 
     # Temporal segmentation
     elif isinstance(resolution, str) and "seg" in resolution.lower():
+        # If snakemake.config["segmentation"]["prices"] == True then use price-based segmentation, otherwise use profile-based segmentation
         price_dir = "resources/prices" if snakemake.config.get("segmentation", {}).get("prices") else None
         segmentation_strategy = "prices" if price_dir else "profiles"
+
         segments = int(resolution[:-3])
         logger.info(f"Use temporal segmentation with {segments} segments using {segmentation_strategy}")
 
@@ -213,7 +222,7 @@ if __name__ == "__main__":
         annual_max = df.max().replace(0, 1)
         df = df.div(annual_max, level=0)
 
-        raw = _price_signal(n, price_dir) if price_dir else df
+        raw = _price_signal(n, price_dir, price_weight_power=1.0) if price_dir else df
 
         # Get representative segments
         agg = tsam.TimeSeriesAggregation(
