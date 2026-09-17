@@ -337,6 +337,49 @@ if __name__ == "__main__":
     directions_df = pd.concat(all_directions, ignore_index=True)
     logger.info(f"Total directions to explore: {len(directions_df)}")
 
+
+    # ADD EXTRA CONSTRAINTS
+    # Add min limit on renewable generation
+    RENEWABLE_CARRIERS = ["solar", "solar-hsat", "onwind", "offwind-ac", "offwind-dc", "offwind-float"]
+    RENEWABLE_MWH_MIN = 6635970580.7 #5308776464.6  # 80% de 6635970580.7 MWh (n_1941_3H)
+
+    def add_min_renewable_constraint(n, snapshots):
+        m = n.model
+        w = n.snapshot_weightings.generators.loc[snapshots]
+
+        gens = n.generators.query("carrier in @RENEWABLE_CARRIERS").index
+        gen_p = m["Generator-p"].sel(name=gens, snapshot=snapshots)
+        gen_energy = (gen_p * w).sum()
+
+        hydro_su = n.storage_units.query("carrier == 'hydro'").index
+        hydro_p = m["StorageUnit-p_dispatch"].sel(name=hydro_su, snapshot=snapshots)
+        hydro_energy = (hydro_p * w).sum()
+
+        total_renewable = gen_energy + hydro_energy
+
+        m.add_constraints(total_renewable >= RENEWABLE_MWH_MIN, name="min_renewable_generation")
+
+    # Add limit on total direction expansion
+    BATTERY_STORE_E_NOM_MAX = 5045457.9  # 120% of cost-optimal aggregate e_nom_opt, MWh
+    BATTERY_CHARGER_P_NOM_MAX = 762891.0  # 120% of cost-optimal aggregate p_nom_opt, MW
+
+    def add_direction_capacity_expansion_limit(n):
+        m = n.model
+
+        # discharger capacity is coupled to charger via a separate efficiency-linked constraint, so only charger needs a bound here
+        battery_store = n.stores.query("carrier == 'battery'").index
+        battery_charger = n.links.query("carrier == 'battery charger'").index
+
+        store_e_nom = m["Store-e_nom"].sel(name=battery_store)
+        charger_p_nom = m["Link-p_nom"].sel(name=battery_charger)
+
+        m.add_constraints(store_e_nom.sum() <= BATTERY_STORE_E_NOM_MAX, name="battery_e_nom_expansion_limit")
+        m.add_constraints(charger_p_nom.sum() <= BATTERY_CHARGER_P_NOM_MAX, name="battery_charger_p_nom_expansion_limit")        
+
+    add_min_renewable_constraint(m, m.snapshots)
+    # add_direction_capacity_expansion_limit(m)
+    # END ADD EXTRA CONSTRAINTS
+
     # Run MGA optimization with caching
     logger.info("Running MGA optimization")
     max_parallel = approx_config.get("max_parallel", 4)
