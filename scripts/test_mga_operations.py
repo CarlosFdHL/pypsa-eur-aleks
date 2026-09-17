@@ -149,7 +149,7 @@ if __name__ == "__main__":
         set_weather(n, m)
         n.optimize.fix_optimal_capacities()
 
-        # NEW: set e_cyclic of co2 atmosphere to False
+        # Set e_cyclic of co2 atmosphere to False
         if n.stores[n.stores['bus'] == 'co2 atmosphere'].e_cyclic.item() == True:
             idx = n.stores.index[n.stores["bus"].eq("co2 atmosphere")]
             n.stores.loc[idx, "e_cyclic"] = False
