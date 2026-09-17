@@ -20,11 +20,15 @@ remote:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "consecutive_years_seg3" #cambiar time_aggregation a weight=1
-  name: "weather_years_1941_1986_2010_9h"
+  prefix: "seg_cuadratic_yearly"  #cambiar time_aggregation a weight=2
+  name: 
+    - weather_year_1941_973seg
+    - weather_year_1986_973seg
+    - weather_year_2010_973seg
+
   scenarios:
     enable: true
-    file: config/tsam-test/consecutive_years_scenarios_seg.yaml
+    file: config/tsam-test/yearly_segmented_designs.yaml
   disable_progressbar: false
   shared_resources:
     policy: false
@@ -36,7 +40,7 @@ run:
   
   stress_tests:
     enable: false
-    design_years: config/tsam-test/consecutive_years_scenarios_seg.yaml
+    design_years: config/tsam-test/yearly_segmented_designs.yaml
     stress_years: config/stress_tests.yaml
     mode: co2-price
 
