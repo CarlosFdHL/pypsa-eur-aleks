@@ -2,11 +2,18 @@
 #
 # SPDX-License-Identifier: MIT
 
-if config["run"]["fixed_network"].get("enable", False):
+if config["run"].get("fixed_network", {}).get("enable", False):
+
+    FIXED_NET_DIR = (
+        "resources/fixed_network/" + config["run"]["fixed_network"]["scenario"] + "/"
+    )
 
     def fixed_network_year(wildcards):
         scenario_name = config["run"]["fixed_network"]["scenario"]
-        return "resources/" + config["run"]["prefix"] + "/" + scenario_name + "/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
+        return ancient(
+            "resources/" + config["run"]["prefix"] + "/" + scenario_name
+            + "/networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
+        )
 
 
     # For fixing different networks
@@ -21,18 +28,18 @@ if config["run"]["fixed_network"].get("enable", False):
         input:
             network=fixed_network_year,
         output:
-            network=RESULTS
-            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.nc",
-            config=RESULTS
-            + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}net.yaml",
+            network=FIXED_NET_DIR
+            + "base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.nc",
+            config=FIXED_NET_DIR
+            + "config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.yaml",
         shadow:
             shadow_config
         log:
-            solver=RESULTS
+            solver=FIXED_NET_DIR
             + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_solver.log",
-            memory=RESULTS
+            memory=FIXED_NET_DIR
             + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_memory.log",
-            python=RESULTS
+            python=FIXED_NET_DIR
             + "logs/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net_python.log",
         threads: solver_threads
         resources:
@@ -40,7 +47,7 @@ if config["run"]["fixed_network"].get("enable", False):
             runtime=config_provider("solving", "runtime", default="6h"),
         benchmark:
             (
-                RESULTS
+                FIXED_NET_DIR
                 + "benchmarks/solve_sector_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net"
             )
         conda:
@@ -61,8 +68,10 @@ if config["run"]["fixed_network"].get("enable", False):
             network=resources(
                 "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
             ),
-            fixed_network = RESULTS
-            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.nc",
+            fixed_network=ancient(
+                FIXED_NET_DIR
+                + "base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_net.nc"
+            ),
         output:
             network=RESULTS
             + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
@@ -90,11 +99,9 @@ if config["run"]["fixed_network"].get("enable", False):
             "../envs/environment.yaml"
         script:
             "../scripts/solve_second_network.py"
-
+ 
 else:
     rule solve_sector_network:
-        message:
-            "Solving sector-coupled network with overnight investment optimization for {wildcards.clusters} clusters, {wildcards.planning_horizons} planning horizons, {wildcards.opts} electric options and {wildcards.sector_opts} sector options"
         params:
             solving=config_provider("solving"),
             foresight=config_provider("foresight"),
@@ -111,12 +118,6 @@ else:
             + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
             config=RESULTS
             + "configs/config.base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.yaml",
-            model=(
-                RESULTS
-                + "models/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
-                if config["solving"]["options"]["store_model"]
-                else []
-            ),
         shadow:
             shadow_config
         log:
@@ -138,7 +139,7 @@ else:
         conda:
             "../envs/environment.yaml"
         script:
-            scripts("solve_network.py")
+            "../scripts/solve_network.py"
 
 
 # Custom rule for operational testing with different weather years
