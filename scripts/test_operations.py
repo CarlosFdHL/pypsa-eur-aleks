@@ -11,6 +11,7 @@ import json
 import logging
 
 import numpy as np
+import pandas as pd
 import pypsa
 import sys
 from _helpers import (
@@ -51,6 +52,67 @@ def set_weather(
             )
         else:
             target.loc[:, :] = source
+
+# In case design year has differnt resolution: assign capacities to the weather year network
+def proxy_p_max_pu(
+    n: pypsa.Network,
+    n_weather: pypsa.Network,
+    names,
+) -> pd.DataFrame:
+    """p_max_pu for generators missing in n_weather: same node with another offshore carrier, else design mean."""
+    ts = n_weather.pnl("Generator")["p_max_pu"]
+    profiles = {}
+    for name in names:
+        carrier = n.generators.at[name, "carrier"]
+        proxies = [name.replace(carrier, alt) for alt in ["offwind-ac", "offwind-float", "offwind-dc"] if alt != carrier]
+        proxy = next((p for p in proxies if p in ts.columns), None)
+        if proxy is not None:
+            logger.warning(f"{name}: using p_max_pu of {proxy}")
+            profiles[name] = ts[proxy]
+        else:
+            if name in n.generators_t.p_max_pu.columns:
+                value = n.generators_t.p_max_pu[name].mean()
+            else:
+                value = n.generators.at[name, "p_max_pu"]
+            logger.warning(f"{name}: no proxy profile, using constant p_max_pu = {value:.3f}")
+            profiles[name] = pd.Series(value, index=n_weather.snapshots)
+    return pd.DataFrame(profiles, index=n_weather.snapshots)
+
+
+def set_capacities(
+    n: pypsa.Network,
+    n_weather: pypsa.Network,
+) -> None:
+    """Set capacities from the design network n to n_weather (for designs with a different time resolution)."""
+    for c, attr in [
+        ("Generator", "p_nom"),
+        ("StorageUnit", "p_nom"),
+        ("Link", "p_nom"),
+        ("Store", "e_nom"),
+        ("Line", "s_nom"),
+        ("Transformer", "s_nom"),
+    ]:
+        source = n.df(c)
+        target = n_weather.df(c)
+        cols = [attr, attr + "_opt", attr + "_extendable"]
+
+        # Components in both networks: copy design capacities
+        common = source.index.intersection(target.index)
+        target.loc[common, cols] = source.loc[common, cols]
+
+        # Components only in the design network: add them
+        missing = source.index.difference(target.index)
+        if missing.empty:
+            continue
+        logger.warning(f"Adding {len(missing)} {c} from design network: {list(missing)}")
+        kwargs = source.loc[missing, source.columns.intersection(target.columns)].to_dict("series")
+        if c == "Generator":
+            kwargs["p_max_pu"] = proxy_p_max_pu(n, n_weather, missing)
+        n_weather.add(c, missing, **kwargs)
+
+    # Keep CO2 shadow price of the design network (used by set_co2_price)
+    if "CO2Limit" in n_weather.global_constraints.index:
+        n_weather.global_constraints.loc["CO2Limit", "mu"] = n.global_constraints.loc["CO2Limit", "mu"]
 
 def set_co2_price(
     n: pypsa.Network,
@@ -127,7 +189,8 @@ if __name__ == "__main__":
             sector_opts="Co2L0.0+T+H+B+I+A",
             planning_horizons="2050",
         )
-
+    import solve_network
+    solve_network.snakemake = snakemake
     configure_logging(snakemake)
     set_scenario_config(snakemake)
     update_config_from_wildcards(snakemake.config, snakemake.wildcards)
@@ -156,7 +219,8 @@ if __name__ == "__main__":
                 comp[attr] *= (1 + buffer)
 
     try:
-        set_weather(n, m)
+        # set_weather(n, m)
+        set_capacities(n, m)
         n.optimize.fix_optimal_capacities()
         prepare_network(
             n,
