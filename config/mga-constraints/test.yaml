@@ -16,7 +16,7 @@ remote:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "max_h20.01"
+  prefix: "test"
   name: "weather_year_1941_3H"
   scenarios:
     enable: true
@@ -28,9 +28,9 @@ run:
   use_shadow_directory: false
   fixed_network:
     enable: true
-    scenario: "weather_year_2013_3H" # ensure that the scenario here is a subset of scenarios["file"]
+    scenario: "weather_year_1962_3H" # ensure that the scenario here is a subset of scenarios["file"]
   stress_tests: 
-    enable: true
+    enable: false
     design_years: config/mga-constraints/1941.yaml # ensure that the scenarios here are a subset of scenarios["file"]
     stress_years: config/stress_tests.yaml # ensure that the scenarios here are a subset of scenarios["file"]
     mode: co2-price # co2-limit

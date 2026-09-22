@@ -44,9 +44,9 @@ weather_year_2013_3H:
       cutout: europe-2011-2016-era5
   clustering:
     temporal:
-      resolution_sector: 32H
+      resolution_sector: 3H
 
-weather_years_1941_1986_2010_9h:
+weather_years_1941_1986_2010_3h:
   snapshots:
     start: ["1941-07-01", "1986-07-01", "2010-07-01"]
     end:   ["1942-07-01", "1987-07-01", "2011-07-01"]
@@ -113,8 +113,7 @@ weather_years_1941_1986_2010_9h:
       cutout: default
   clustering:
     temporal:
-      resolution_sector: 9h
-
+      resolution_sector: 3h
 
 
 
@@ -168,9 +167,6 @@ weather_year_1965_3H:
   clustering:
     temporal:
       resolution_sector: 3H
-
-
-      
 weather_year_1996_3H:
   snapshots:
     start: 1996-07-01 00:00
@@ -218,9 +214,6 @@ weather_year_1996_3H:
   clustering:
     temporal:
       resolution_sector: 3H
-
-
-
 weather_year_1962_3H:
   snapshots:
     start: 1962-07-01 00:00

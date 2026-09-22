@@ -1,0 +1,68 @@
+weather_years_1941_1986_2010_3h:
+  snapshots:
+    start: ["1941-07-01", "1986-07-01", "2010-07-01"]
+    end:   ["1942-07-01", "1987-07-01", "2011-07-01"]
+    inclusive: left
+  atlite:
+    default_cutout:
+    - europe-1941-1946-era5
+    - europe-1986-1991-era5
+    - europe-2006-2011-era5
+    cutouts:
+      europe-1941-1942-era5:
+        module: era5
+        x: [-12.0, 35.0]
+        'y': [33.0, 72.0]
+        dx: 0.25
+        dy: 0.25
+        time: ['1941', '1942']
+        prepare_kwargs:
+          features: [temperature, height, runoff]
+          sarah_dir:
+          monthly_requests: true
+          tmpdir: ./cutouts_tmp/
+      europe-1986-1987-era5:
+        module: era5
+        x: [-12.0, 35.0]
+        'y': [33.0, 72.0]
+        dx: 0.25
+        dy: 0.25
+        time: ['1986', '1987']
+        prepare_kwargs:
+          features: [temperature, height, runoff]
+          sarah_dir:
+          monthly_requests: true
+          tmpdir: ./cutouts_tmp/
+      europe-2010-2011-era5:
+        module: era5
+        x: [-12.0, 35.0]
+        'y': [33.0, 72.0]
+        dx: 0.25
+        dy: 0.25
+        time: ['2010', '2011']
+        prepare_kwargs:
+          features: [temperature, height, runoff]
+          sarah_dir:
+          monthly_requests: true
+          tmpdir: ./cutouts_tmp/
+  renewable:
+    onwind: {cutout: default}
+    offwind-ac: {cutout: default}
+    offwind-dc: {cutout: default}
+    offwind-float: {cutout: default}
+    solar: {cutout: default}
+    solar-hsat: {cutout: default}
+    hydro:
+      cutout: default
+      eia_approximate_missing: true
+      eia_correct_by_capacity: true
+  solar_thermal:
+    cutout: default
+  sector:
+    heat_demand_cutout: default
+  lines:
+    dynamic_line_rating:
+      cutout: default
+  clustering:
+    temporal:
+      resolution_sector: 3h
