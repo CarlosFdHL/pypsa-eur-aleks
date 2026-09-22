@@ -24,7 +24,7 @@ run:
   name: "weather_years_1941_1986_2010_9h"
   scenarios:
     enable: true
-    file: config/tsam-test/consecutive_years_scenarios_seg.yaml
+    file: config/tsam-test/consecutive_years_scenarios_seg.yaml   
   disable_progressbar: false
   shared_resources:
     policy: false
@@ -35,8 +35,8 @@ run:
     scenario: "weather_year_2013_3H"
   
   stress_tests:
-    enable: false
-    design_years: config/tsam-test/consecutive_years_scenarios_seg.yaml
+    enable: true
+    design_years: config/tsam-test/consecutive_years_design_seg.yaml
     stress_years: config/stress_tests.yaml
     mode: co2-price
 

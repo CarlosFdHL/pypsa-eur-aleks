@@ -8,22 +8,23 @@ conda activate pypsa-eur-mga-v2026.02
 # CONFIG="config/mga_carlos/full0.02_v6.yaml"
 # CONFIG="config/mga_carlos/full0.05_v6.yaml"
 CONFIG="config/mga-constraints/max_bat0.01.yaml"
+CONFIG="config/mga-constraints/max_h20.01.yaml"
 
 # ============================================================
 #  Cluster settings — edit here
 # ============================================================
 # Step 1: prepare_sector_network
-PREPARE_PARTITION="windq"
+PREPARE_PARTITION="rome"
 PREPARE_TIME_LIMIT="12:00:00"
 PREPARE_CPUS_PER_TASK=32
-PREPARE_EXCLUDE_NODES=""
+PREPARE_EXCLUDE_NODES="sn537"
 PREPARE_RESTART_TIMES=3
 
 # Steps 2-5: solve_thin (shared cluster resources; --jobs is set per step below)
-SOLVE_PARTITION="windq"
+SOLVE_PARTITION="rome"
 SOLVE_TIME_LIMIT="48:00:00"
 SOLVE_CPUS_PER_TASK=32
-SOLVE_EXCLUDE_NODES="sn040,sn047,sn179,sn202,sn251"
+SOLVE_EXCLUDE_NODES="sn537"
 # ============================================================
 
 # ======================================
@@ -41,7 +42,7 @@ fi
 
 # ======================================
 # RERUN TRIGGERS MTIME
-MTIME=false
+MTIME=true
 # ======================================
 
 if [ "$MTIME" = true ]; then
@@ -118,9 +119,16 @@ run_step() {
 add_sleep() {
     local step_num=$1
     if [[ "$step_num" -lt "$LAST_STEP" ]]; then
-        echo "Waiting 60s before next step..."; sleep 60
+        echo "Waiting 15s before next step..."; sleep 15
     fi
 }
+
+# Step 0
+echo "Starting Step 0: --touch"
+
+snakemake --touch --configfile="$CONFIG" 
+if [ $? -ne 0 ]; then echo "ERROR in step 1. Aborting."; exit 1; fi
+
 
 # Step 1
 if should_run 1; then
@@ -144,7 +152,7 @@ if should_run 2; then
     export SNK_EXCLUDE_NODES="$SOLVE_EXCLUDE_NODES"
 
     run_step 2 "Solving (thin)"
-    ./snakemake_solve_thin --configfile="$CONFIG" --keep-going --jobs=15 $FORCE_FLAG $MTIME_FLAG
+    ./snakemake_solve_thin --configfile="$CONFIG" --keep-going --jobs=40 $FORCE_FLAG $MTIME_FLAG
     if [ $? -ne 0 ]; then echo "ERROR in step 2. Aborting."; exit 1; fi
     add_sleep 2
 fi
@@ -157,7 +165,7 @@ if should_run 3; then
     export SNK_EXCLUDE_NODES="$SOLVE_EXCLUDE_NODES"
 
     run_step 3 "Computing MGA solutions"
-    ./snakemake_solve_thin compute_mga_solutions --jobs=30 --keep-going --configfile="$CONFIG" $FORCE_FLAG $MTIME_FLAG
+    ./snakemake_solve_thin compute_mga_solutions --jobs=1 --keep-going --configfile="$CONFIG" $FORCE_FLAG $MTIME_FLAG
     if [ $? -ne 0 ]; then echo "ERROR in step 3. Aborting."; exit 1; fi
     add_sleep 3
 fi
