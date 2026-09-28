@@ -22,6 +22,7 @@ from _helpers import (
 )
 from mga_helpers import export_mga_capacities
 from solve_second_network import fix_networks
+from solve_network import extra_functionality
 from pypsa.optimization.mga import hash_direction, hash_mga
 
 logger = logging.getLogger(__name__)
@@ -399,6 +400,7 @@ if __name__ == "__main__":
         dimensions=dimensions,
         cache_dir=cache_dir,
         mga_extra_functionality=export_mga_capacities,
+        extra_functionality=extra_functionality,
         snapshots=None,
         multi_investment_periods=False,
         slack=slack,
