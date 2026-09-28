@@ -53,37 +53,143 @@ def set_weather(
         else:
             target.loc[:, :] = source
 
-# In case design year has differnt resolution: assign capacities to the weather year network
-def proxy_p_max_pu(
-    n: pypsa.Network,
-    n_weather: pypsa.Network,
-    names,
-) -> pd.DataFrame:
-    """p_max_pu for generators missing in n_weather: same node with another offshore carrier, else design mean."""
-    ts = n_weather.pnl("Generator")["p_max_pu"]
-    profiles = {}
-    for name in names:
-        carrier = n.generators.at[name, "carrier"]
-        proxies = [name.replace(carrier, alt) for alt in ["offwind-ac", "offwind-float", "offwind-dc"] if alt != carrier]
-        proxy = next((p for p in proxies if p in ts.columns), None)
-        if proxy is not None:
-            logger.warning(f"{name}: using p_max_pu of {proxy}")
-            profiles[name] = ts[proxy]
-        else:
-            if name in n.generators_t.p_max_pu.columns:
-                value = n.generators_t.p_max_pu[name].mean()
+class NetworkSyncError(Exception):
+    """Design and weather networks cannot be synced."""
+class MissingWeatherDependentError(NetworkSyncError): pass
+class NoProxyProfileError(NetworkSyncError): pass
+class InconsistentTimeSeriesError(NetworkSyncError): pass
+class InconsistentTopologyError(NetworkSyncError): pass
+
+
+# Order matters: carriers and buses are added first and removed last
+SYNC_COMPONENTS = ["Carrier", "Bus", "Line", "Transformer", "Link", "Generator", "Load", "StorageUnit", "Store"]
+# Similar technologies at the same location, in order of priority
+PROXY_CARRIERS = {
+    "offwind-float": ["offwind-dc", "offwind-ac"],
+    "offwind-dc": ["offwind-ac", "offwind-float"],
+    "offwind-ac": ["offwind-dc", "offwind-float"],
+    "solar": ["solar-hsat", "solar rooftop"],
+    "solar-hsat": ["solar", "solar rooftop"],
+    "solar rooftop": ["solar", "solar-hsat"],
+}
+# Added later by prepare_network: never copied nor removed
+EXCLUDED = ""
+
+
+def input_ts(n: pypsa.Network, c: str, name: str = None) -> list:
+    """Input time series attributes of class c (only those of component `name`, if given)."""
+    attrs = n.components[c].attrs
+    out = [a for a in n.pnl(c) if a in attrs.index and str(attrs.at[a, "status"]).startswith("Input")]
+    return out if name is None else [a for a in out if name in n.pnl(c)[a].columns]
+
+
+def find_proxy(n: pypsa.Network, n_weather: pypsa.Network, name: str):
+    """(proxy, scale, profile) of the first similar technology at the same location, or None."""
+    loc = n.generators.bus.map(n.buses.location) if "location" in n.buses else n.generators.bus
+    loc = loc.where(loc.fillna("") != "", n.generators.bus)
+    ts, ts_weather = n.generators_t.p_max_pu, n_weather.generators_t.p_max_pu
+    w = n.snapshot_weightings.generators
+    cf = lambda s: (s * w).sum() / w.sum()
+    for carrier in PROXY_CARRIERS[n.generators.at[name, "carrier"]]:
+        found = loc.index[(n.generators.carrier == carrier) & (loc == loc[name])]
+        found = sorted(found.intersection(ts.columns).intersection(ts_weather.columns))
+        if found and cf(ts[found[0]]) > 0:
+            scale = cf(ts[name]) / cf(ts[found[0]])
+            return found[0], scale, (ts_weather[found[0]] * scale).clip(upper=1)
+    return None
+
+
+def sync_components(n: pypsa.Network, n_weather: pypsa.Network) -> None:
+    """Make n_weather contain exactly the components of the design network n.
+
+    Phase 1, validation (read only). All issues are collected and raised
+    together; n_weather is not modified if any issue is found.
+    - Missing component (in n, not in n_weather):
+        * no input time series in n: copied from n.
+        * Generator with only p_max_pu and carrier in PROXY_CARRIERS (offshore
+          wind, solar variants): copied from n; p_max_pu = weather-year profile
+          of the first similar technology at the same bus location, scaled by
+          the ratio of their design capacity factors (weighted by snapshot
+          weightings) and clipped to 1. No valid proxy: NoProxyProfileError.
+        * anything else with time series (EV, hydro, ror, heat pumps, onwind,
+          solar thermal, time-varying loads...): MissingWeatherDependentError.
+    - Common component with a time series in only one network:
+      InconsistentTimeSeriesError.
+    - Component kept in n_weather referring to a bus or carrier not in n:
+      InconsistentTopologyError.
+
+    Phase 2, modification.
+    - Extra components (in n_weather, not in n) are removed, logged with
+      timestamp and names; weather-dependent ones are flagged.
+    - Missing components are added (copies and proxies).
+    Common components keep their weather-year time series. Components matching
+    EXCLUDED are ignored. Capacities are set afterwards in set_capacities.
+    """
+    issues, remove, add, proxies = [], {}, {}, {}
+    keep = lambda idx: idx[~idx.str.contains(EXCLUDED)] if len(idx) else idx
+
+    for c in SYNC_COMPONENTS:
+        # Check for missing components and time series inconsistencies
+        df, df_weather = n.df(c), n_weather.df(c)
+        # 
+        remove[c] = keep(df_weather.index.difference(df.index))
+        add[c] = []
+        for name in keep(df.index.difference(df_weather.index)):
+            ts = input_ts(n, c, name)
+            carrier = df.at[name, "carrier"] if "carrier" in df else ""
+            if not ts:
+                add[c].append(name)
+            elif c == "Generator" and carrier in PROXY_CARRIERS and ts == ["p_max_pu"]:
+                proxies[name] = find_proxy(n, n_weather, name)
+                add[c].append(name)
+                if proxies[name] is None:
+                    issues.append((NoProxyProfileError, f"Generator '{name}' ({carrier}): no {PROXY_CARRIERS[carrier]} with profile at same location in both networks"))
             else:
-                value = n.generators.at[name, "p_max_pu"]
-            logger.warning(f"{name}: no proxy profile, using constant p_max_pu = {value:.3f}")
-            profiles[name] = pd.Series(value, index=n_weather.snapshots)
-    return pd.DataFrame(profiles, index=n_weather.snapshots)
+                issues.append((MissingWeatherDependentError, f"{c} '{name}' ({carrier}): missing, has time series {ts} in design network"))
+
+        common = df.index.intersection(df_weather.index)
+        for a in input_ts(n, c):
+            one_side = common.intersection(n.pnl(c)[a].columns).symmetric_difference(common.intersection(n_weather.pnl(c)[a].columns))
+            issues += [(InconsistentTimeSeriesError, f"{c} '{name}': '{a}' is a time series in only one network") for name in one_side]
+
+        kept = df_weather.drop(remove[c])
+        for col in [col for col in kept if col == "carrier" or col.rstrip("0123456789") == "bus"]:
+            valid = n.carriers.index if col == "carrier" else n.buses.index
+            bad = kept[col][(kept[col] != "") & ~kept[col].isin(valid)]
+            issues += [(InconsistentTopologyError, f"{c} '{name}': {col} '{ref}' not in design network") for name, ref in bad.items()]
+
+    if issues:
+        classes = {cls for cls, _ in issues}
+        msg = f"Weather network not modified, {len(issues)} issue(s):\n" + "\n".join(f"  [{cls.__name__}] {m}" for cls, m in issues)
+        raise (classes.pop() if len(classes) == 1 else NetworkSyncError)(msg)
+
+    now = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+    for c in reversed(SYNC_COMPONENTS):
+        if remove[c].empty:
+            continue
+        weather_dependent = [name for name in remove[c] if input_ts(n_weather, c, name)]
+        logger.warning(
+            f"[{now}] REMOVED {len(remove[c])} {c} from weather network (not in design network): {list(remove[c])}"
+            + (f". WEATHER-DEPENDENT, check configs: {weather_dependent}" if weather_dependent else "")
+        )
+        n_weather.remove(c, remove[c])
+    for c in SYNC_COMPONENTS:
+        if add[c]:
+            cols = n.df(c).columns.intersection(n_weather.df(c).columns)
+            n_weather.add(c, add[c], **n.df(c).loc[add[c], cols].to_dict("series"))
+            logger.warning(f"[{now}] ADDED {len(add[c])} {c} from design network: {add[c]}")
+    for name, (proxy, scale, profile) in proxies.items():
+        n_weather.generators_t.p_max_pu[name] = profile
+        logger.warning(f"[{now}] PROXY '{name}': p_max_pu of '{proxy}' scaled by {scale:.3f}")
 
 
 def set_capacities(
     n: pypsa.Network,
     n_weather: pypsa.Network,
 ) -> None:
-    """Set capacities from the design network n to n_weather (for designs with a different time resolution)."""
+    """Sync components and set capacities from the design network n to n_weather."""
+    sync_components(n, n_weather)
+
     for c, attr in [
         ("Generator", "p_nom"),
         ("StorageUnit", "p_nom"),
@@ -92,27 +198,28 @@ def set_capacities(
         ("Line", "s_nom"),
         ("Transformer", "s_nom"),
     ]:
-        source = n.df(c)
-        target = n_weather.df(c)
         cols = [attr, attr + "_opt", attr + "_extendable"]
-
-        # Components in both networks: copy design capacities
-        common = source.index.intersection(target.index)
-        target.loc[common, cols] = source.loc[common, cols]
-
-        # Components only in the design network: add them
-        missing = source.index.difference(target.index)
-        if missing.empty:
-            continue
-        logger.warning(f"Adding {len(missing)} {c} from design network: {list(missing)}")
-        kwargs = source.loc[missing, source.columns.intersection(target.columns)].to_dict("series")
-        if c == "Generator":
-            kwargs["p_max_pu"] = proxy_p_max_pu(n, n_weather, missing)
-        n_weather.add(c, missing, **kwargs)
+        common = n.df(c).index.intersection(n_weather.df(c).index)
+        n_weather.df(c).loc[common, cols] = n.df(c).loc[common, cols]
 
     # Keep CO2 shadow price of the design network (used by set_co2_price)
     if "CO2Limit" in n_weather.global_constraints.index:
         n_weather.global_constraints.loc["CO2Limit", "mu"] = n.global_constraints.loc["CO2Limit", "mu"]
+
+    # Non weather-dependent loads (static p_set, no time series in n_weather):
+    # use design values, as in the original set_weather workflow
+    static_loads = (
+        n.loads.index
+        .intersection(n_weather.loads.index)
+        .difference(n_weather.loads_t.p_set.columns)
+    )
+    diff = (n_weather.loads.loc[static_loads, "p_set"] - n.loads.loc[static_loads, "p_set"]).abs()
+    logger.info(
+        f"Copying static p_set of {len(static_loads)} loads from design network "
+        f"({(diff > 1e-6).sum()} differ, max abs diff {diff.max():.3f} MW)"
+    )
+    n_weather.loads.loc[static_loads, "p_set"] = n.loads.loc[static_loads, "p_set"]
+
 
 def set_co2_price(
     n: pypsa.Network,
@@ -221,6 +328,8 @@ if __name__ == "__main__":
     try:
         # set_weather(n, m)
         set_capacities(n, m)
+        design = n         # keep reference to the design network if needed later
+        n = m               # from here on, solve the weather-year network
         n.optimize.fix_optimal_capacities()
         prepare_network(
             n,
@@ -263,6 +372,13 @@ if __name__ == "__main__":
                     n.model.print_infeasibilities()
                 except AttributeError:
                     logger.warning("print_infeasibilities not available in this pypsa version")
+            if status != "ok":
+                logger.warning(f"Solver status: {status}, condition: {condition}")
+                try:
+                    n.model.print_infeasibilities()
+                except AttributeError:
+                    logger.warning("print_infeasibilities not available in this pypsa version")
+                raise RuntimeError(f"Validation not solved: status={status}, condition={condition}")
 
         logger.info(f"Maximum memory usage: {mem.mem_usage}")
 
