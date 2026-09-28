@@ -5,26 +5,32 @@ set -euo pipefail
 # EDIT THESE VALUES BEFORE RUNNING
 # ======================================================================
 
-SRC_PREFIX="full0.01_v5"                     # prefix con todo ya resuelto (origen)
-DST_PREFIX="test"              # prefix destino
-CONFIGFILE="config/mga-constraints/test.yaml"  # configfile del destino
+SRC_PREFIX="consecutive_years_seg3"                               # source prefix (everything already solved)
+DST_PREFIX="consecutive_years_seg4"                               # destination prefix
+CONFIGFILE="config/tsam-test/consecutive_years_segmented.yaml"    # destination configfile
 
-# Años cuya red resuelta (results/) quieres reutilizar -> salida de solve_second_network
-DESIGN_YEARS=(1941 1962)
-# Años climáticos con los que validas en test_operations -> solo necesitan resources/
-OPERATIONAL_YEARS=(1962)
+# Each entry can be either:
+#   - a year (or years joined with "_")  -> expanded to weather_year_<entry>_<DEFAULT_TIME_RES>
+#   - a full scenario name starting with "weather_year" -> used as is
+#     (e.g. weather_year_1941_1986_2010_9h, weather_years_1941_1986_2010_3H)
+DEFAULT_TIME_RES="3H"
+
+# Scenarios whose solved network (results/) you want to reuse -> output of solve_second_network
+DESIGN_SCENARIOS=(weather_years_1941_1986_2010_9h)
+# Operational scenarios validated in test_operations -> only need resources/
+OPERATIONAL_SCENARIOS=(1962 1965 1996 2013)
 
 RESOLUTION="50"        # base_s_<RESOLUTION>
 TARGET_YEAR="2050"     # ___<TARGET_YEAR>
-PROJECT_DIR="$(pwd)"   # raíz de pypsa-eur (donde están results/ y resources/)
-DRY_RUN=0              # 1 = solo mostrar lo que haría
+PROJECT_DIR="$(pwd)"   # pypsa-eur root (where results/ and resources/ live)
+DRY_RUN=0              # 1 = only print what would be done
 
-COPY_RESOURCES=1        # 1 = copiar resources/<SRC>/weather_year_X_3H/ completo (unión de años)
-COPY_RESULTS=1          # 1 = copiar results/<SRC>/weather_year_X_3H/{networks,configs} (DESIGN_YEARS)
-RUN_CLEANUP_METADATA=0  # 1 = snakemake --cleanup-metadata sobre todo lo copiado
-RUN_TOUCH=1             # 1 = snakemake --touch sobre redes resueltas y de recursos (ordena mtimes del DAG)
-RUN_VERIFY=1            # 1 = dry-run final (muestra los reason: por defecto)
-VERIFY_TARGETS=(test_networks)   # target(s) para la verificación
+COPY_RESOURCES=1        # 1 = copy resources/<SRC>/<scenario>/ entirely (design + operational)
+COPY_RESULTS=1          # 1 = copy results/<SRC>/<scenario>/{networks,configs} (design only)
+RUN_CLEANUP_METADATA=0  # 1 = snakemake --cleanup-metadata on everything copied
+RUN_TOUCH=1             # 1 = snakemake --touch on solved + resource networks (orders DAG mtimes)
+RUN_VERIFY=1            # 1 = final dry-run (shows the reason: lines by default)
+VERIFY_TARGETS=(test_networks)   # target(s) for verification
 
 # ======================================================================
 # NOTHING BELOW THIS LINE NEEDS TO BE EDITED
@@ -37,6 +43,16 @@ run() {
 }
 warn() { echo "  [WARNING] $*" >&2; }
 
+# Resolve an entry into its scenario directory name
+scenario_dir() {
+  local s="$1"
+  if [[ "$s" == weather_year* ]]; then
+    echo "$s"
+  else
+    echo "weather_year_${s}_${DEFAULT_TIME_RES}"
+  fi
+}
+
 NET="networks/base_s_${RESOLUTION}___${TARGET_YEAR}.nc"
 CFG="configs/config.base_s_${RESOLUTION}___${TARGET_YEAR}.yaml"
 
@@ -44,28 +60,33 @@ declare -a COPIED_FILES=()
 declare -a TOUCH_TARGETS=()
 declare -a SKIPPED=()
 
-[[ "$DRY_RUN" -eq 1 ]] && echo "(dry-run: no se copia ni se ejecuta nada)"
+[[ "$DRY_RUN" -eq 1 ]] && echo "(dry-run: nothing is copied or executed)"
 
-# ---- Unión de años para resources (diseño + operacionales, sin duplicados)
+# ---- Resolve scenario names
+DESIGN_DIRS=()
+for s in "${DESIGN_SCENARIOS[@]}"; do DESIGN_DIRS+=("$(scenario_dir "$s")"); done
+
+# ---- Union of scenarios for resources (design + operational, no duplicates)
 declare -A _seen=()
-RESOURCE_YEARS=()
-for y in "${DESIGN_YEARS[@]}" "${OPERATIONAL_YEARS[@]}"; do
-  if [[ -z "${_seen[$y]:-}" ]]; then _seen[$y]=1; RESOURCE_YEARS+=("$y"); fi
+RESOURCE_DIRS=()
+for s in "${DESIGN_SCENARIOS[@]}" "${OPERATIONAL_SCENARIOS[@]}"; do
+  d="$(scenario_dir "$s")"
+  if [[ -z "${_seen[$d]:-}" ]]; then _seen[$d]=1; RESOURCE_DIRS+=("$d"); fi
 done
 
 # ---- 1) resources/
 if [[ "$COPY_RESOURCES" -eq 1 ]]; then
   echo ""
-  echo "== resources/: '$SRC_PREFIX' -> '$DST_PREFIX' (años: ${RESOURCE_YEARS[*]}) =="
-  for y in "${RESOURCE_YEARS[@]}"; do
-    src="resources/${SRC_PREFIX}/weather_year_${y}_3H"
-    dst="resources/${DST_PREFIX}/weather_year_${y}_3H"
+  echo "== resources/: '$SRC_PREFIX' -> '$DST_PREFIX' (scenarios: ${RESOURCE_DIRS[*]}) =="
+  for d in "${RESOURCE_DIRS[@]}"; do
+    src="resources/${SRC_PREFIX}/${d}"
+    dst="resources/${DST_PREFIX}/${d}"
     if [[ ! -f "$src/$NET" ]]; then
-      warn "Año $y: no existe $src/$NET. Se omite."
-      SKIPPED+=("resources:$y"); continue
+      warn "$d: $src/$NET does not exist. Skipping."
+      SKIPPED+=("resources:$d"); continue
     fi
     n=$(find "$src" -type f | wc -l)
-    echo "  Año $y: $src/ -> $dst/  ($n ficheros)"
+    echo "  $d: $src/ -> $dst/  ($n files)"
     run mkdir -p "$dst"
     run cp -a "$src/." "$dst/"
     while IFS= read -r f; do
@@ -74,21 +95,21 @@ if [[ "$COPY_RESOURCES" -eq 1 ]]; then
   done
 else
   echo ""
-  echo "== Saltando copia de resources/ (COPY_RESOURCES=0) =="
+  echo "== Skipping resources/ copy (COPY_RESOURCES=0) =="
 fi
 
 # ---- 2) results/
 if [[ "$COPY_RESULTS" -eq 1 ]]; then
   echo ""
-  echo "== results/: '$SRC_PREFIX' -> '$DST_PREFIX' (años: ${DESIGN_YEARS[*]}) =="
-  for y in "${DESIGN_YEARS[@]}"; do
-    src="results/${SRC_PREFIX}/weather_year_${y}_3H"
-    dst="results/${DST_PREFIX}/weather_year_${y}_3H"
+  echo "== results/: '$SRC_PREFIX' -> '$DST_PREFIX' (scenarios: ${DESIGN_DIRS[*]}) =="
+  for d in "${DESIGN_DIRS[@]}"; do
+    src="results/${SRC_PREFIX}/${d}"
+    dst="results/${DST_PREFIX}/${d}"
     if [[ ! -f "$src/$NET" || ! -f "$src/$CFG" ]]; then
-      warn "Año $y: falta $src/$NET o $src/$CFG. Se omite."
-      SKIPPED+=("results:$y"); continue
+      warn "$d: missing $src/$NET or $src/$CFG. Skipping."
+      SKIPPED+=("results:$d"); continue
     fi
-    echo "  Año $y: $src/{$NET,$CFG} -> $dst/"
+    echo "  $d: $src/{$NET,$CFG} -> $dst/"
     run mkdir -p "$dst/networks" "$dst/configs"
     run cp -a "$src/$NET" "$dst/$NET"
     run cp -a "$src/$CFG" "$dst/$CFG"
@@ -96,67 +117,67 @@ if [[ "$COPY_RESULTS" -eq 1 ]]; then
   done
 else
   echo ""
-  echo "== Saltando copia de results/ (COPY_RESULTS=0) =="
+  echo "== Skipping results/ copy (COPY_RESULTS=0) =="
 fi
 
-# ---- Targets para --touch: redes resueltas del destino
-for y in "${DESIGN_YEARS[@]}"; do
-  f="results/${DST_PREFIX}/weather_year_${y}_3H/$NET"
+# ---- --touch targets: solved networks in destination
+for d in "${DESIGN_DIRS[@]}"; do
+  f="results/${DST_PREFIX}/${d}/$NET"
   if [[ -f "$f" || "$DRY_RUN" -eq 1 ]]; then
     TOUCH_TARGETS+=("$f")
   else
-    warn "Año $y: $f no existe en destino; no se incluye en --touch."
+    warn "$d: $f does not exist in destination; not included in --touch."
   fi
 done
 
-# ---- Targets para --touch: redes de recursos (diseño + operacionales), para que
-#      también se pongan al día las cadenas de los años que solo usa test_operations
-for y in "${RESOURCE_YEARS[@]}"; do
-  f="resources/${DST_PREFIX}/weather_year_${y}_3H/$NET"
+# ---- --touch targets: resource networks (design + operational), so the chains of
+#      scenarios only used by test_operations are also brought up to date
+for d in "${RESOURCE_DIRS[@]}"; do
+  f="resources/${DST_PREFIX}/${d}/$NET"
   if [[ -f "$f" || "$DRY_RUN" -eq 1 ]]; then
     TOUCH_TARGETS+=("$f")
   else
-    warn "Año $y: $f no existe en destino; no se incluye en --touch."
+    warn "$d: $f does not exist in destination; not included in --touch."
   fi
 done
 
 if [[ ${#SKIPPED[@]} -gt 0 ]]; then
   echo ""
-  echo "Omitidos por falta de ficheros en origen: ${SKIPPED[*]}"
+  echo "Skipped due to missing source files: ${SKIPPED[*]}"
 fi
 
 # ---- 3) cleanup-metadata
 if [[ "$RUN_CLEANUP_METADATA" -eq 1 && ${#COPIED_FILES[@]} -gt 0 ]]; then
   echo ""
-  echo "== Limpiando metadata de Snakemake (${#COPIED_FILES[@]} ficheros) =="
+  echo "== Cleaning Snakemake metadata (${#COPIED_FILES[@]} files) =="
   if [[ "$DRY_RUN" -eq 1 ]]; then
-    echo "    [dry-run] snakemake --cleanup-metadata <${#COPIED_FILES[@]} ficheros> --configfile=$CONFIGFILE"
+    echo "    [dry-run] snakemake --cleanup-metadata <${#COPIED_FILES[@]} files> --configfile=$CONFIGFILE"
   else
     if ! snakemake --cleanup-metadata "${COPIED_FILES[@]}" --configfile="$CONFIGFILE"; then
-      echo "  [Aviso] Algunos ficheros no tenían metadata (normal en ficheros copiados). Se continúa."
+      echo "  [Note] Some files had no metadata (normal for copied files). Continuing."
     fi
   fi
 else
   echo ""
-  echo "== Saltando cleanup-metadata =="
+  echo "== Skipping cleanup-metadata =="
 fi
 
-# ---- 4) touch en orden del DAG (resources -> results)
+# ---- 4) touch in DAG order (resources -> results)
 if [[ "$RUN_TOUCH" -eq 1 && ${#TOUCH_TARGETS[@]} -gt 0 ]]; then
   echo ""
-  echo "== snakemake --touch sobre ${#TOUCH_TARGETS[@]} redes (resueltas + recursos) =="
+  echo "== snakemake --touch on ${#TOUCH_TARGETS[@]} networks (solved + resources) =="
   run snakemake "${TOUCH_TARGETS[@]}" --touch --rerun-triggers=mtime --configfile="$CONFIGFILE"
 else
   echo ""
-  echo "== Saltando --touch =="
+  echo "== Skipping --touch =="
 fi
 
-# ---- 5) verificación
+# ---- 5) verification
 if [[ "$RUN_VERIFY" -eq 1 ]]; then
   echo ""
-  echo "== Dry-run de verificación: en 'Job stats' solo deberían aparecer test_operations / test_networks =="
+  echo "== Verification dry-run: only test_operations / test_networks should appear in 'Job stats' =="
   run snakemake "${VERIFY_TARGETS[@]}" -n --rerun-triggers=mtime --configfile="$CONFIGFILE"
 fi
 
 echo ""
-echo "Done. Lanza la validación con: snakemake ${VERIFY_TARGETS[*]} --rerun-triggers=mtime --configfile=$CONFIGFILE (+ tu profile)"
+echo "Done. Launch validation with: snakemake ${VERIFY_TARGETS[*]} --rerun-triggers=mtime --configfile=$CONFIGFILE (+ your profile)"

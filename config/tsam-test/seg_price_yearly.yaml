@@ -20,7 +20,7 @@ remote:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#run
 run:
-  prefix: "seg_cuadratic_yearly"  #cambiar time_aggregation a weight=2
+  prefix: "seg_price_yearly"  
   name: 
     - weather_year_1941_973seg
     - weather_year_1986_973seg

@@ -7,21 +7,21 @@ conda activate pypsa-eur-mga-v2026.02
 # CONFIG="config/mga_carlos/full0.01_v6.yaml"
 # CONFIG="config/mga_carlos/full0.02_v6.yaml"
 # CONFIG="config/mga_carlos/full0.05_v6.yaml"
-CONFIG="config/mga-constraints/max_bat0.01.yaml"
-CONFIG="config/mga-constraints/max_h20.01.yaml"
+# CONFIG="config/mga-constraints/max_bat0.01.yaml"
+CONFIG="config/mga-constraints/max_h20.02.yaml"
 
 # ============================================================
 #  Cluster settings — edit here
 # ============================================================
 # Step 1: prepare_sector_network
-PREPARE_PARTITION="rome"
+PREPARE_PARTITION="windq,workq,rome"
 PREPARE_TIME_LIMIT="12:00:00"
 PREPARE_CPUS_PER_TASK=32
 PREPARE_EXCLUDE_NODES="sn537"
 PREPARE_RESTART_TIMES=3
 
 # Steps 2-5: solve_thin (shared cluster resources; --jobs is set per step below)
-SOLVE_PARTITION="rome"
+SOLVE_PARTITION="windq,workq,rome"
 SOLVE_TIME_LIMIT="48:00:00"
 SOLVE_CPUS_PER_TASK=32
 SOLVE_EXCLUDE_NODES="sn537"
@@ -170,6 +170,8 @@ if should_run 3; then
     add_sleep 3
 fi
 
+snakemake test_networks --touch --configfile="$CONFIG" 
+
 # Step 4
 if should_run 4; then
     export SNK_PARTITION="$SOLVE_PARTITION"
@@ -190,7 +192,7 @@ if should_run 5; then
     export SNK_EXCLUDE_NODES="$SOLVE_EXCLUDE_NODES"
 
     run_step 5 "Validating MGA solutions"
-    ./snakemake_solve_thin validate_mga_solutions --configfile="$CONFIG" --keep-going --jobs=30 $FORCE_FLAG $MTIME_FLAG
+    ./snakemake_solve_thin validate_mga_solutions --configfile="$CONFIG" --keep-going --jobs=1 $FORCE_FLAG $MTIME_FLAG
     if [ $? -ne 0 ]; then echo "ERROR in step 5. Aborting."; exit 1; fi
 fi
 
