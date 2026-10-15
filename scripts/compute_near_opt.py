@@ -341,11 +341,15 @@ if __name__ == "__main__":
 
     logger.info(f"Using solver: {solver_name}")
 
+    save_network = (
+    approx_config.get("iterations", 0) == 0
+    and snakemake.params.get("save_network", False)
+    )
     successful_directions, successful_coordinates = m.optimize.optimize_mga_in_multiple_directions(
         directions=directions_df,
         dimensions=dimensions,
         cache_dir=cache_dir,
-        mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config),
+        mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config, save_network=save_network),
         snapshots=None,
         multi_investment_periods=False,
         slack=slack,
@@ -378,5 +382,6 @@ if __name__ == "__main__":
     # Save network hash to separate file
     logger.info(f"Saving network hash to {snakemake.output.network_hash}")
     Path(snakemake.output.network_hash).write_text(network_hash)
+
 
     logger.info("MGA computation complete")

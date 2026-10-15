@@ -11,10 +11,12 @@ dispatch optimization with weather from a different year.
 
 import json
 import logging
+import os
 import pandas as pd
 import numpy as np
 import pypsa
 import sys
+from pathlib import Path
 from _helpers import (
     configure_logging,
     set_scenario_config,
@@ -246,6 +248,21 @@ if __name__ == "__main__":
         }
         with open(snakemake.output.metadata, "w") as f:
             json.dump(metadata, f, indent=2)
+
+        # -- Save validation network if iterations=0 and save_validation_network=True --
+        n_iterations = snakemake.config.get("near-opt", {}).get("approx", {}).get("iterations", 1)
+        save_val_network = snakemake.params.get("save_validation_network", False)
+
+        if n_iterations == 0 and save_val_network:
+            wc = snakemake.wildcards
+            
+            filename = f"{wc.network_hash}_{wc.dir_hash}_{wc.operational_year}.nc"
+            out_path = Path(snakemake.params.results_dir) / filename
+            
+            # Ensure output directory exists before saving
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            n.export_to_netcdf(out_path)
+            logger.info(f"Saved validation network → {out_path}")
 
         logger.info(f"MGA validation complete for direction {snakemake.wildcards.dir_hash}, year {snakemake.wildcards.operational_year}")
 

@@ -112,13 +112,15 @@ if __name__ == "__main__":
         m.stores.loc[idx, "e_cyclic"] = True
     logger.info("Set 'co2 atmosphere' store to cyclic")
 
+    save_network = mga_config.get("save_network", False)
+
     # Run near-opt optimisation for this batch
     successful_directions, successful_coordinates = (
         m.optimize.optimize_mga_in_multiple_directions(
             directions=directions_df,
             dimensions=dimensions,
             cache_dir=cache_dir,
-            mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config),
+            mga_extra_functionality=partial(export_mga_information, wildcards=dict(snakemake.wildcards), slack=slack_config, save_network=save_network),
             snapshots=None,
             multi_investment_periods=False,
             slack=slack,

@@ -27,6 +27,8 @@ rule compute_near_opt:
             "sector", "co2_sequestration_potential", default=200
         ),
         custom_extra_functionality=input_custom_extra_functionality,
+        save_network=config_provider("near-opt", "approx", "save_network", default=False),  
+        results_dir=RESULTS,  
         total_directions=lambda w: (
             (2 * len(config_provider("near-opt", "projection")(w)) if config_provider("near-opt", "approx", "minmax")(w) else 0)
             + config_provider("near-opt", "approx", "iterations")(w)
@@ -78,6 +80,8 @@ rule validation_mga:
             "sector", "co2_sequestration_potential", default=200
         ),
         custom_extra_functionality=input_custom_extra_functionality,
+        save_validation_network=config_provider("near-opt", "approx", "save_validation_network", default=False), 
+        results_dir=lambda wildcards: "results/" + config["run"]["prefix"] + "/" + wildcards.design_year + "/networks/validation", 
     message:
         "Validating near-optimal solution {wildcards.dir_hash} | "
         "design {wildcards.design_year} | stress {wildcards.operational_year} | "

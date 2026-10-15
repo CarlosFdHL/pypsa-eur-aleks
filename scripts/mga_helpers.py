@@ -13,7 +13,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash, check_only=False):
+def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash, check_only=False, save_network=False):
     """
     Export or check optimal capacities for an MGA solution.
 
@@ -35,6 +35,9 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     check_only : bool, default False
         If True, only check if capacities file exists and return bool.
         If False, extract and export capacities.
+    save_network : bool, default False
+        If True, also export the network to a NetCDF file.
+        If False, only export capacities.
 
     Returns
     -------
@@ -44,6 +47,9 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     # Construct output path
     caps_dir = Path(cache_dir) / "caps"
     caps_file = caps_dir / f"caps_{network_hash}_{direction_hash}.csv"
+    
+    networks_dir = Path(cache_dir) / "networks"
+    network_file = networks_dir / f"{network_hash}_{direction_hash}.nc"
 
     if check_only:
         # Just check if file exists
@@ -58,12 +64,18 @@ def export_mga_capacities(n, snapshots, cache_dir, network_hash, direction_hash,
     # Save to file
     capacities.to_csv(caps_file, index=False)
 
+    if save_network:
+        # Export network
+        networks_dir.mkdir(parents=True, exist_ok=True)
+        n.export_to_netcdf(str(network_file))
+        logger.info(f"Exported network to {network_file.name}")
+
     logger.info(
         f"Exported {len(capacities)} capacities to {caps_file.name}"
     )
 
 
-def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash, wildcards=None, slack=None, check_only=False):
+def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash, wildcards=None, slack=None, check_only=False, save_network=False):
     """
     Export or check all per-direction MGA solution outputs.
 
@@ -115,7 +127,7 @@ def export_mga_information(n, snapshots, cache_dir, network_hash, direction_hash
     for d in (caps_dir, info_dir, netload_dir, emissions_dir):
         d.mkdir(parents=True, exist_ok=True)
 
-    capacities = extract_optimal_capacities(n)
+    capacities = extract_optimal_capacities(n, save_network)
     capacities.to_csv(caps_file, index=False)
     logger.info(f"Exported {len(capacities)} capacities to {caps_file.name}")
 
